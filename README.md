@@ -5,6 +5,7 @@ A native macOS application for managing and running Docker Compose files with a 
 ## Documentation
 
 - [Architecture](ARCHITECTURE.md) - High-level overview of the app's design
+- [FAQ](FAQ.md) - Common questions and answers
 - [Contributing](CONTRIBUTING.md) - Guide for developers
 - [License](LICENSE) - Legal information
 

@@ -37,6 +37,7 @@ class DockerComposeManager: ObservableObject {
         process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
         process.standardOutput = pipe
         process.standardError = errorPipe
+        setupEnvironment(for: process)
         
         runningProcesses[file.id] = process
         
@@ -97,6 +98,7 @@ class DockerComposeManager: ObservableObject {
         process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
         process.standardOutput = pipe
         process.standardError = errorPipe
+        setupEnvironment(for: process)
         
         do {
             try process.run()
@@ -142,5 +144,20 @@ class DockerComposeManager: ObservableObject {
         if logs.count > maxLogLines {
             logs.removeFirst(logs.count - maxLogLines)
         }
+    }
+    
+    private func setupEnvironment(for process: Process) {
+        var env = ProcessInfo.processInfo.environment
+        let commonPaths = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"]
+        let currentPath = env["PATH"] ?? ""
+        let pathList = currentPath.split(separator: ":").map(String.init)
+        var newPaths = pathList
+        for path in commonPaths {
+            if !newPaths.contains(path) {
+                newPaths.insert(path, at: 0)
+            }
+        }
+        env["PATH"] = newPaths.joined(separator: ":")
+        process.environment = env
     }
 }
