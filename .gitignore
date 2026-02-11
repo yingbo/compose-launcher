@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Swift Package Manager
+.build/
+.swiftpm/
+# For apps, Package.resolved is often committed. 
+# Uncomment below if you want to ignore it.
+# Package.resolved
+
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+!Package.swift
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.lock
+*.log
+
+# Build Artifacts
+Compose Launcher.app/
+*.o
+*.out
