@@ -43,34 +43,33 @@ class DockerComposeManager: ObservableObject {
         
         addLog(for: file.id, message: "Starting docker compose...")
         
-        // Capture weak self and file ID for closures
-        weak let weakSelf = self
+        // Capture file ID for closures
         let fileId = file.id
         
-        // Handle stdout
-        pipe.fileHandleForReading.readabilityHandler = { handle in
+        // Handle stdout - use nonisolated helper to avoid concurrency issues
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                Task { @MainActor in
-                    weakSelf?.processOutput(output, for: fileId, isError: false)
+                Task { @MainActor [weak self] in
+                    self?.processOutput(output, for: fileId, isError: false)
                 }
             }
         }
         
         // Handle stderr
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+        errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
-                Task { @MainActor in
-                    weakSelf?.processOutput(output, for: fileId, isError: true)
+                Task { @MainActor [weak self] in
+                    self?.processOutput(output, for: fileId, isError: true)
                 }
             }
         }
         
-        process.terminationHandler = { _ in
-            Task { @MainActor in
-                weakSelf?.runningProcesses.removeValue(forKey: fileId)
-                weakSelf?.addLog(for: fileId, message: "Process terminated")
+        process.terminationHandler = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.runningProcesses.removeValue(forKey: fileId)
+                self?.addLog(for: fileId, message: "Process terminated")
             }
         }
         
