@@ -71,9 +71,17 @@ EOF
 echo -n "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
 
 echo "✅ Build complete: ${APP_BUNDLE}"
-echo ""
-echo "To run the app:"
-echo "  open \"${APP_BUNDLE}\""
-echo ""
-echo "To install to Applications:"
-echo "  cp -r \"${APP_BUNDLE}\" /Applications/"
+
+echo "🔄 Restarting app..."
+# Close the app if it's running. Use the process name "ComposeLauncher"
+# We use || true because pkill returns 1 if no process is found, which would trigger set -e
+pkill -x "ComposeLauncher" || true
+
+# Wait a moment for the process to terminate
+sleep 1
+
+# Open the new build
+open "${APP_BUNDLE}"
+
+echo "🚀 ${APP_NAME} is running!"
+
