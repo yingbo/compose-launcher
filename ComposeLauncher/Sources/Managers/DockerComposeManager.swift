@@ -43,30 +43,34 @@ class DockerComposeManager: ObservableObject {
         
         addLog(for: file.id, message: "Starting docker compose...")
         
+        // Capture weak self and file ID for closures
+        weak let weakSelf = self
+        let fileId = file.id
+        
         // Handle stdout
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        pipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
                 Task { @MainActor in
-                    self?.processOutput(output, for: file.id, isError: false)
+                    weakSelf?.processOutput(output, for: fileId, isError: false)
                 }
             }
         }
         
         // Handle stderr
-        errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let output = String(data: data, encoding: .utf8) {
                 Task { @MainActor in
-                    self?.processOutput(output, for: file.id, isError: true)
+                    weakSelf?.processOutput(output, for: fileId, isError: true)
                 }
             }
         }
         
-        process.terminationHandler = { [weak self] _ in
+        process.terminationHandler = { _ in
             Task { @MainActor in
-                self?.runningProcesses.removeValue(forKey: file.id)
-                self?.addLog(for: file.id, message: "Process terminated")
+                weakSelf?.runningProcesses.removeValue(forKey: fileId)
+                weakSelf?.addLog(for: fileId, message: "Process terminated")
             }
         }
         
