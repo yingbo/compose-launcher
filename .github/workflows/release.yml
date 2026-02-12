@@ -1,0 +1,140 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  build:
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for tags
+      
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.9"
+      
+      - name: Get version from tag
+        id: version
+        run: |
+          # Get the latest tag or use default
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ComposeLauncher/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('ComposeLauncher/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      
+      - name: Build for Apple Silicon (ARM64)
+        run: |
+          cd ComposeLauncher
+          swift build -c release --arch arm64
+      
+      - name: Build for Intel (x86_64)
+        run: |
+          cd ComposeLauncher
+          swift build -c release --arch x86_64
+      
+      - name: Create Universal Binary
+        run: |
+          mkdir -p ComposeLauncher/.build/universal
+          lipo -create \
+            ComposeLauncher/.build/arm64-apple-macos/release/ComposeLauncher \
+            ComposeLauncher/.build/x86_64-apple-macos/release/ComposeLauncher \
+            -output ComposeLauncher/.build/universal/ComposeLauncher
+      
+      - name: Create app bundle
+        run: |
+          # Create app bundle structure
+          mkdir -p "Compose Launcher.app/Contents/MacOS"
+          mkdir -p "Compose Launcher.app/Contents/Resources"
+          
+          # Copy universal executable
+          cp ComposeLauncher/.build/universal/ComposeLauncher "Compose Launcher.app/Contents/MacOS/"
+          
+          # Copy icon
+          cp ComposeLauncher/Sources/Resources/AppIcon.icns "Compose Launcher.app/Contents/Resources/"
+          
+          # Create Info.plist with version
+          cat > "Compose Launcher.app/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>ComposeLauncher</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.composelauncher.app</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>Compose Launcher</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${{ steps.version.outputs.version }}</string>
+              <key>CFBundleVersion</key>
+              <string>${{ steps.version.outputs.version }}</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>14.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSHumanReadableCopyright</key>
+              <string>Copyright © 2026. All rights reserved.</string>
+              <key>LSApplicationCategoryType</key>
+              <string>public.app-category.developer-tools</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Create PkgInfo
+          echo -n "APPL????" > "Compose Launcher.app/Contents/PkgInfo"
+      
+      - name: Create archive
+        run: |
+          zip -r "Compose-Launcher-macos.zip" "Compose Launcher.app"
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Compose Launcher v${{ steps.version.outputs.version }}
+          body: |
+            ## Compose Launcher v${{ steps.version.outputs.version }}
+            
+            ### Downloads
+            - **Compose-Launcher-macos.zip** - Universal Binary (Intel + Apple Silicon)
+            
+            ### System Requirements
+            - macOS 14.0 or later
+            - Works on both Intel and Apple Silicon Macs
+            
+            ### Installation
+            1. Download and extract the ZIP file
+            2. Move "Compose Launcher.app" to your Applications folder
+            3. Right-click and select "Open" on first launch (required for unsigned apps)
+            
+            ### What's Changed
+            See commit history for details.
+          files: |
+            Compose-Launcher-macos.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
