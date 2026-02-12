@@ -28,6 +28,13 @@ struct ComposeLauncherApp: App {
                     NotificationCenter.default.post(name: .stopCompose, object: nil)
                 }
                 .keyboardShortcut(".", modifiers: .command)
+                
+                Divider()
+                
+                Button("Remove Selected...") {
+                    NotificationCenter.default.post(name: .removeCompose, object: nil)
+                }
+                .keyboardShortcut(.delete, modifiers: .command)
             }
         }
         
@@ -41,4 +48,5 @@ extension Notification.Name {
     static let addComposeFile = Notification.Name("addComposeFile")
     static let startCompose = Notification.Name("startCompose")
     static let stopCompose = Notification.Name("stopCompose")
+    static let removeCompose = Notification.Name("removeCompose")
 }

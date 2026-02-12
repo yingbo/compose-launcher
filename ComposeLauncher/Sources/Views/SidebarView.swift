@@ -7,6 +7,8 @@ struct SidebarView: View {
     @Binding var selectedFile: ComposeFile?
     @State private var showingFilePicker = false
     @State private var hoveredFileId: UUID?
+    @State private var showingDeleteConfirmation = false
+    @State private var fileToDelete: ComposeFile?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -41,7 +43,10 @@ struct SidebarView: View {
                             onSelect: { selectedFile = file },
                             onStart: { startCompose(file) },
                             onStop: { stopCompose(file) },
-                            onRemove: { removeFile(file) }
+                            onRemove: {
+                                fileToDelete = file
+                                showingDeleteConfirmation = true
+                            }
                         )
                         .onHover { isHovered in
                             hoveredFileId = isHovered ? file.id : nil
@@ -54,12 +59,39 @@ struct SidebarView: View {
         }
         .frame(minWidth: 240)
         .background(Color(nsColor: .controlBackgroundColor))
+        .alert("Remove Compose File", isPresented: $showingDeleteConfirmation, presenting: fileToDelete) { file in
+            Button("Cancel", role: .cancel) { }
+            Button("Remove", role: .destructive) {
+                removeFile(file)
+            }
+        } message: { file in
+            Text("Are you sure you want to remove '\(file.displayName)'? This will not delete the file from your disk.")
+        }
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [.yaml, .init(filenameExtension: "yml")!],
             allowsMultipleSelection: true
         ) { result in
             handleFileSelection(result)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .addComposeFile)) { _ in
+            showingFilePicker = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .startCompose)) { _ in
+            if let file = selectedFile {
+                startCompose(file)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stopCompose)) { _ in
+            if let file = selectedFile {
+                stopCompose(file)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .removeCompose)) { _ in
+            if let file = selectedFile {
+                fileToDelete = file
+                showingDeleteConfirmation = true
+            }
         }
     }
     
@@ -170,14 +202,6 @@ struct ComposeFileRow: View {
                         .buttonStyle(.plain)
                         .help("Start")
                     }
-                    
-                    Button(action: onRemove) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove")
                 }
             }
         }
@@ -189,5 +213,10 @@ struct ComposeFileRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
+        .contextMenu {
+            Button(role: .destructive, action: onRemove) {
+                Label("Remove", systemImage: "trash")
+            }
+        }
     }
 }
