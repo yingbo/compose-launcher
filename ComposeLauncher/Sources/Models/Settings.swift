@@ -14,7 +14,7 @@ struct AppSettings: Codable {
     init(maxLogLines: Int = 100_000, 
          dockerComposePath: String = "/usr/local/bin/docker", 
          composeFiles: [ComposeFile] = [],
-         sidebarDisplayMode: SidebarDisplayMode = .flat) {
+         sidebarDisplayMode: SidebarDisplayMode = .tree) {
         let defaultDockerPath: String
         #if arch(arm64)
         if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/docker") {
