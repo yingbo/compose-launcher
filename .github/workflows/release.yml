@@ -40,21 +40,29 @@ jobs:
             ${{ runner.os }}-spm-
       
       - name: Build for Apple Silicon (ARM64)
+        id: build_arm64
         run: |
           cd ComposeLauncher
           swift build -c release --arch arm64
+          BIN_PATH=$(swift build -c release --arch arm64 --show-bin-path)
+          echo "bin_path=$BIN_PATH" >> $GITHUB_OUTPUT
       
       - name: Build for Intel (x86_64)
+        id: build_x86
         run: |
           cd ComposeLauncher
           swift build -c release --arch x86_64
+          BIN_PATH=$(swift build -c release --arch x86_64 --show-bin-path)
+          echo "bin_path=$BIN_PATH" >> $GITHUB_OUTPUT
       
       - name: Create Universal Binary
         run: |
           mkdir -p ComposeLauncher/.build/universal
+          echo "ARM64 binary: ${{ steps.build_arm64.outputs.bin_path }}/ComposeLauncher"
+          echo "x86_64 binary: ${{ steps.build_x86.outputs.bin_path }}/ComposeLauncher"
           lipo -create \
-            ComposeLauncher/.build/arm64-apple-macos/release/ComposeLauncher \
-            ComposeLauncher/.build/x86_64-apple-macos/release/ComposeLauncher \
+            "${{ steps.build_arm64.outputs.bin_path }}/ComposeLauncher" \
+            "${{ steps.build_x86.outputs.bin_path }}/ComposeLauncher" \
             -output ComposeLauncher/.build/universal/ComposeLauncher
       
       - name: Create app bundle
