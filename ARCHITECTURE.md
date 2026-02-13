@@ -1,18 +1,18 @@
 # Architecture Overview
 
-Compose Launcher is a native macOS application built using **SwiftUI** and the **Swift Package Manager**. This document outlines the high-level architecture and design patterns used in the project.
+Compose Launcher is a native macOS application built using **SwiftUI** and the **Swift Package Manager**. This document outlines the high-level architecture and design patterns used in the project. The UI/UX design is maintained in [Stitch](https://stitch.withgoogle.com/projects/12642404483796731361).
 
 ## Components
 
 ### 1. Models (`Sources/Models`)
 These are simple, immutable data structures that represent the core entities of the application.
 - **`ComposeFile`**: Represents a `docker-compose.yml` file, its location, and its current state.
-- **`Settings`**: Configuration settings for the app.
+- **`AppSettings`**: Configuration settings for the app, including **`SidebarDisplayMode`** (Flat or Hierarchical).
 - **`LogEntry`**: A single line of log output from a container.
 
 ### 2. Managers (`Sources/Managers`)
 Managers handle the business logic and interact with external systems (Docker, Filesystem).
-- **`DockerComposeManager`**: The core logic for interacting with the `docker compose` CLI. It handles starting/stopping containers and streaming logs.
+- **`DockerComposeManager`**: The core logic for interacting with the `docker compose` CLI. It handles starting/stopping containers, streaming logs, and **discovering services** defined in compose files.
 - **`SettingsManager`**: Manages the persistence of app settings and the list of imported compose files.
 
 ### 3. Views (`Sources/Views`)

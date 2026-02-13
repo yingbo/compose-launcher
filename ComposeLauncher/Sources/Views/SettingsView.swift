@@ -6,6 +6,7 @@ struct SettingsView: View {
     
     @State private var maxLogLines: String = ""
     @State private var dockerPath: String = ""
+    @State private var sidebarDisplayMode: SidebarDisplayMode = .flat
     
     var body: some View {
         VStack(spacing: 0) {
@@ -46,6 +47,27 @@ struct SettingsView: View {
                             }
                             
                             Text("Usually /usr/local/bin/docker or /opt/homebrew/bin/docker")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    
+                    // Appearance Settings
+                    SettingsSection(title: "Appearance", icon: "paintbrush") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sidebar Display Mode")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            
+                            Picker("", selection: $sidebarDisplayMode) {
+                                ForEach(SidebarDisplayMode.allCases, id: \.self) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            
+                            Text("Choose how your compose files are organized in the sidebar.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.tertiary)
                         }
@@ -139,6 +161,7 @@ struct SettingsView: View {
     private func loadCurrentSettings() {
         maxLogLines = String(settingsManager.settings.maxLogLines)
         dockerPath = settingsManager.settings.dockerComposePath
+        sidebarDisplayMode = settingsManager.settings.sidebarDisplayMode
     }
     
     private func saveSettings() {
@@ -146,12 +169,14 @@ struct SettingsView: View {
             settingsManager.updateMaxLogLines(lines)
         }
         settingsManager.updateDockerPath(dockerPath)
+        settingsManager.updateSidebarDisplayMode(sidebarDisplayMode)
     }
     
     private func resetToDefaults() {
         let defaults = AppSettings.default
         maxLogLines = String(defaults.maxLogLines)
         dockerPath = defaults.dockerComposePath
+        sidebarDisplayMode = defaults.sidebarDisplayMode
     }
     
     private func browseForDocker() {

@@ -4,6 +4,7 @@ A native macOS application for managing and running Docker Compose files with a 
 
 ## Documentation
 
+- [Design (Stitch)](https://stitch.withgoogle.com/projects/12642404483796731361) - UI/UX design project
 - [Architecture](ARCHITECTURE.md) - High-level overview of the app's design
 - [FAQ](FAQ.md) - Common questions and answers
 - [Contributing](CONTRIBUTING.md) - Guide for developers
@@ -12,6 +13,7 @@ A native macOS application for managing and running Docker Compose files with a 
 ## Features
 
 - **Add & Manage Compose Files**: Import any `docker-compose.yml` file and manage them from a sidebar
+- **Hierarchical Tree View**: Organize files by their directory structure and monitor individual services
 - **Built-in Editor**: Edit compose files directly in the app with syntax highlighting
 - **Live Logs**: View real-time logs from running containers with search and filtering
 - **Log Management**: Configurable log retention (default: 100,000 lines)

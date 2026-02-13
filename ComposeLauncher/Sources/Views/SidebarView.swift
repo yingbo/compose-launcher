@@ -9,6 +9,58 @@ struct SidebarView: View {
     @State private var hoveredFileId: UUID?
     @State private var showingDeleteConfirmation = false
     @State private var fileToDelete: ComposeFile?
+    @State private var expandedItems: Set<String> = []
+    @State private var cachedServices: [UUID: [String]] = [:]
+    @State private var runningServices: [UUID: [String]] = [:]
+    
+    struct SidebarItem: Identifiable {
+        let id: String
+        let name: String
+        let icon: String
+        let file: ComposeFile?
+        let isService: Bool
+        let children: [SidebarItem]?
+    }
+    
+    private var treeItems: [SidebarItem] {
+        var folders: [String: [ComposeFile]] = [:]
+        
+        for file in settingsManager.settings.composeFiles {
+            let parentPath = URL(fileURLWithPath: file.path).deletingLastPathComponent().path
+            folders[parentPath, default: []].append(file)
+        }
+        
+        return folders.map { (path, files) in
+            let folderName = URL(fileURLWithPath: path).lastPathComponent
+            return SidebarItem(
+                id: path,
+                name: folderName,
+                icon: "folder.fill",
+                file: nil,
+                isService: false,
+                children: files.map { file in
+                    let services = cachedServices[file.id] ?? []
+                    return SidebarItem(
+                        id: file.id.uuidString,
+                        name: file.displayName,
+                        icon: "shippingbox.fill",
+                        file: file,
+                        isService: false,
+                        children: services.isEmpty ? nil : services.map { service in
+                            SidebarItem(
+                                id: "\(file.id.uuidString)-\(service)",
+                                name: service,
+                                icon: "cpu",
+                                file: file, // Keep track of parent file
+                                isService: true,
+                                children: nil
+                            )
+                        }
+                    )
+                }.sorted { $0.name < $1.name }
+            )
+        }.sorted { $0.name < $1.name }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -32,30 +84,55 @@ struct SidebarView: View {
             Divider()
             
             // File List
-            ScrollView {
-                LazyVStack(spacing: 4) {
-                    ForEach(settingsManager.settings.composeFiles) { file in
-                        ComposeFileRow(
-                            file: file,
-                            isSelected: selectedFile?.id == file.id,
-                            isRunning: composeManager.isRunning(file),
-                            isHovered: hoveredFileId == file.id,
-                            onSelect: { selectedFile = file },
-                            onStart: { startCompose(file) },
-                            onStop: { stopCompose(file) },
-                            onRemove: {
+            if settingsManager.settings.sidebarDisplayMode == .tree {
+                List(treeItems, children: \.children) { item in
+                    SidebarRow(
+                        item: item,
+                        selectedFile: $selectedFile,
+                        hoveredId: $hoveredFileId,
+                        isRunning: item.file.map { composeManager.isRunning($0) } ?? false,
+                        isServiceRunning: item.isService && item.file.map { runningServices[$0.id]?.contains(item.name) ?? false } ?? false,
+                        onStart: { if let file = item.file { startCompose(file) } },
+                        onStop: { if let file = item.file { stopCompose(file) } },
+                        onRemove: {
+                            if let file = item.file {
                                 fileToDelete = file
                                 showingDeleteConfirmation = true
                             }
-                        )
-                        .onHover { isHovered in
-                            hoveredFileId = isHovered ? file.id : nil
+                        }
+                    )
+                    .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                }
+                .listStyle(.sidebar)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(settingsManager.settings.composeFiles) { file in
+                            ComposeFileRow(
+                                file: file,
+                                isSelected: selectedFile?.id == file.id,
+                                isRunning: composeManager.isRunning(file),
+                                isHovered: hoveredFileId == file.id,
+                                onSelect: { selectedFile = file },
+                                onStart: { startCompose(file) },
+                                onStop: { stopCompose(file) },
+                                onRemove: {
+                                    fileToDelete = file
+                                    showingDeleteConfirmation = true
+                                }
+                            )
+                            .onHover { isHovered in
+                                hoveredFileId = isHovered ? file.id : nil
+                            }
                         }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
             }
+        }
+        .onAppear {
+            refreshAllServices()
         }
         .frame(minWidth: 240)
         .background(Color(nsColor: .controlBackgroundColor))
@@ -145,6 +222,81 @@ struct SidebarView: View {
             settingsManager.removeComposeFile(file)
             if selectedFile?.id == file.id {
                 selectedFile = nil
+            }
+        }
+    }
+    
+    private func refreshAllServices() {
+        for file in settingsManager.settings.composeFiles {
+            Task {
+                let services = await composeManager.getServices(for: file)
+                cachedServices[file.id] = services
+                
+                let running = await composeManager.getRunningServices(for: file)
+                runningServices[file.id] = running
+            }
+        }
+    }
+}
+
+struct SidebarRow: View {
+    let item: SidebarView.SidebarItem
+    @Binding var selectedFile: ComposeFile?
+    @Binding var hoveredId: UUID?
+    let isRunning: Bool
+    let isServiceRunning: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
+    let onRemove: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            if item.file != nil || item.isService {
+                Circle()
+                    .fill(item.isService ? (isServiceRunning ? Color.green : Color.gray.opacity(0.4)) : (isRunning ? Color.green : Color.gray.opacity(0.4)))
+                    .frame(width: 6, height: 6)
+            } else {
+                Image(systemName: item.icon)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            
+            Text(item.name)
+                .font(.system(size: 13, weight: item.file != nil && !item.isService ? .medium : .regular))
+                .foregroundColor(item.isService ? .secondary : .primary)
+                .lineLimit(1)
+            
+            Spacer()
+            
+            if !item.isService && item.file != nil {
+                if isRunning {
+                    Button(action: onStop) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button(action: onStart) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.green)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let file = item.file {
+                selectedFile = file
+            }
+        }
+        .contextMenu {
+            if item.file != nil && !item.isService {
+                Button(role: .destructive, action: onRemove) {
+                    Label("Remove", systemImage: "trash")
+                }
             }
         }
     }

@@ -19,3 +19,11 @@ Whenever working on a GitHub issue, follow these steps:
 
 4.  **Review & Merging**
     *   **Wait for User**: Do NOT merge the PR yourself. The USER will merge it manually unless they explicitly tell you to do so.
+
+## Design Rules
+
+When creating designs (e.g., using Stitch), follow these principles:
+
+1.  **Default Theme**: Use **Light Theme** as the default for all new design screens unless explicitly requested otherwise.
+2.  **Typography**: Use **macOS standard interface fonts** (e.g., San Francisco/System Font) for all text elements to ensure a native look and feel.
+
