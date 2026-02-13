@@ -5,12 +5,12 @@ on:
     branches:
       - release
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-14
-    permissions:
-      contents: write
-      releases: write
     
     steps:
       - name: Checkout
