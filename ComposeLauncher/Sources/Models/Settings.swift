@@ -1,11 +1,20 @@
 import Foundation
 
+enum SidebarDisplayMode: String, Codable, CaseIterable {
+    case flat = "Flat List"
+    case tree = "Hierarchical Tree"
+}
+
 struct AppSettings: Codable {
     var maxLogLines: Int
     var dockerComposePath: String
     var composeFiles: [ComposeFile]
+    var sidebarDisplayMode: SidebarDisplayMode
     
-    init(maxLogLines: Int = 100_000, dockerComposePath: String = "/usr/local/bin/docker", composeFiles: [ComposeFile] = []) {
+    init(maxLogLines: Int = 100_000, 
+         dockerComposePath: String = "/usr/local/bin/docker", 
+         composeFiles: [ComposeFile] = [],
+         sidebarDisplayMode: SidebarDisplayMode = .flat) {
         let defaultDockerPath: String
         #if arch(arm64)
         if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/docker") {
@@ -22,6 +31,7 @@ struct AppSettings: Codable {
         self.maxLogLines = maxLogLines
         self.dockerComposePath = dockerComposePath == "/usr/local/bin/docker" ? defaultDockerPath : dockerComposePath
         self.composeFiles = composeFiles
+        self.sidebarDisplayMode = sidebarDisplayMode
     }
     
     static let `default` = AppSettings()

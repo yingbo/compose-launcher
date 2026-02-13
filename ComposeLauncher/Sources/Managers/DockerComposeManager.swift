@@ -124,6 +124,75 @@ class DockerComposeManager: ObservableObject {
         return runningProcesses[file.id] != nil
     }
     
+    func getServices(for file: ComposeFile) async -> [String] {
+        let process = Process()
+        let pipe = Pipe()
+        
+        process.executableURL = URL(fileURLWithPath: dockerPath)
+        process.arguments = ["compose", "-f", file.path, "config", "--services"]
+        process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
+        process.standardOutput = pipe
+        setupEnvironment(for: process)
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                return output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            }
+        } catch {
+            print("Failed to get services: \(error)")
+        }
+        return []
+    }
+    
+    struct ServiceInfo: Codable {
+        let Service: String
+        let State: String
+    }
+    
+    func getRunningServices(for file: ComposeFile) async -> [String] {
+        let process = Process()
+        let pipe = Pipe()
+        
+        process.executableURL = URL(fileURLWithPath: dockerPath)
+        process.arguments = ["compose", "-f", file.path, "ps", "--format", "json"]
+        process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
+        process.standardOutput = pipe
+        setupEnvironment(for: process)
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            
+            // Docker Compose ps --format json output can be multiple JSON objects or a list depending on version
+            let output = String(data: data, encoding: .utf8) ?? ""
+            if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
+            
+            // Try parsing as a list first
+            if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
+                return list.filter { $0.State == "running" }.map { $0.Service }
+            }
+            
+            // Handle line-delimited JSON
+            let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            var runningServices: [String] = []
+            for line in lines {
+                if let info = try? JSONDecoder().decode(ServiceInfo.self, from: line.data(using: .utf8)!) {
+                    if info.State == "running" {
+                        runningServices.append(info.Service)
+                    }
+                }
+            }
+            return runningServices
+        } catch {
+            print("Failed to get service statuses: \(error)")
+        }
+        return []
+    }
+    
     func clearLogs(for fileId: UUID? = nil) {
         if let fileId = fileId {
             logs.removeAll { $0.composeFileId == fileId }
