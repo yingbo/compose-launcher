@@ -72,4 +72,9 @@ class SettingsManager: ObservableObject {
         settings.dockerComposePath = path
         saveSettings()
     }
+    
+    func updateSidebarDisplayMode(_ mode: SidebarDisplayMode) {
+        settings.sidebarDisplayMode = mode
+        saveSettings()
+    }
 }
