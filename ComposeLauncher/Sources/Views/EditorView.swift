@@ -2,11 +2,13 @@ import SwiftUI
 
 struct EditorView: View {
     let file: ComposeFile
+    @ObservedObject var settingsManager = SettingsManager.shared
     @State private var content: String = ""
     @State private var originalContent: String = ""
     @State private var isLoading = true
     @State private var hasChanges = false
     @State private var showingSaveAlert = false
+    @State private var showingEnvFilePicker = false
     @State private var errorMessage: String?
     
     var body: some View {
@@ -14,8 +16,25 @@ struct EditorView: View {
             // Toolbar
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(file.displayName)
-                        .font(.system(size: 14, weight: .semibold))
+                    HStack(spacing: 6) {
+                        Text(file.displayName)
+                            .font(.system(size: 14, weight: .semibold))
+                        
+                        if let envPath = file.envFilePath {
+                            HStack(spacing: 4) {
+                                Image(systemName: "link")
+                                    .font(.system(size: 8))
+                                Text(URL(fileURLWithPath: envPath).lastPathComponent)
+                                    .font(.system(size: 10))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.1))
+                            .cornerRadius(4)
+                            .foregroundColor(.accentColor)
+                        }
+                    }
+                    
                     Text(file.path)
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -35,19 +54,26 @@ struct EditorView: View {
                         .cornerRadius(4)
                 }
                 
-                Button(action: reloadContent) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
+                Group {
+                    Button(action: { showingEnvFilePicker = true }) {
+                        Image(systemName: "list.bullet.rectangle.portrait")
+                            .font(.system(size: 12))
+                    }
+                    .help("Select .env file")
+                    
+                    Button(action: reloadContent) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12))
+                    }
+                    .help("Reload from disk")
+                    
+                    Button(action: openInExternalEditor) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 12))
+                    }
+                    .help("Open in external editor")
                 }
                 .buttonStyle(.plain)
-                .help("Reload from disk")
-                
-                Button(action: openInExternalEditor) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .help("Open in external editor")
                 
                 Button(action: saveContent) {
                     Text("Save")
@@ -99,6 +125,22 @@ struct EditorView: View {
         }
         .onChange(of: file.id) { _, _ in
             loadContent()
+        }
+        .fileImporter(
+            isPresented: $showingEnvFilePicker,
+            allowedContentTypes: [.init(filenameExtension: "env") ?? .text, .plainText],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    var updatedFile = file
+                    updatedFile.envFilePath = url.path
+                    settingsManager.updateComposeFile(updatedFile)
+                }
+            case .failure(let error):
+                print("Failed to select .env file: \(error)")
+            }
         }
         .alert("Unsaved Changes", isPresented: $showingSaveAlert) {
             Button("Save") { saveContent() }

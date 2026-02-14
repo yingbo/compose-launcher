@@ -33,7 +33,7 @@ class DockerComposeManager: ObservableObject {
         let errorPipe = Pipe()
         
         process.executableURL = executableURL
-        process.arguments = ["compose", "-f", file.path, "up"]
+        process.arguments = ["compose", "-f", file.path] + getEnvFileArguments(for: file) + ["up"]
         process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
         process.standardOutput = pipe
         process.standardError = errorPipe
@@ -97,7 +97,7 @@ class DockerComposeManager: ObservableObject {
         let errorPipe = Pipe()
         
         process.executableURL = URL(fileURLWithPath: dockerPath)
-        process.arguments = ["compose", "-f", file.path, "down"]
+        process.arguments = ["compose", "-f", file.path] + getEnvFileArguments(for: file) + ["down"]
         process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
         process.standardOutput = pipe
         process.standardError = errorPipe
@@ -129,7 +129,7 @@ class DockerComposeManager: ObservableObject {
         let pipe = Pipe()
         
         process.executableURL = URL(fileURLWithPath: dockerPath)
-        process.arguments = ["compose", "-f", file.path, "config", "--services"]
+        process.arguments = ["compose", "-f", file.path] + getEnvFileArguments(for: file) + ["config", "--services"]
         process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
         process.standardOutput = pipe
         setupEnvironment(for: process)
@@ -157,7 +157,7 @@ class DockerComposeManager: ObservableObject {
         let pipe = Pipe()
         
         process.executableURL = URL(fileURLWithPath: dockerPath)
-        process.arguments = ["compose", "-f", file.path, "ps", "--format", "json"]
+        process.arguments = ["compose", "-f", file.path] + getEnvFileArguments(for: file) + ["ps", "--format", "json"]
         process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
         process.standardOutput = pipe
         setupEnvironment(for: process)
@@ -190,6 +190,21 @@ class DockerComposeManager: ObservableObject {
         } catch {
             print("Failed to get service statuses: \(error)")
         }
+        return []
+    }
+    
+    private func getEnvFileArguments(for file: ComposeFile) -> [String] {
+        if let customEnv = file.envFilePath, !customEnv.isEmpty {
+            return ["--env-file", customEnv]
+        }
+        
+        // Default to .env in the same directory if it exists
+        let composeDir = URL(fileURLWithPath: file.path).deletingLastPathComponent()
+        let defaultEnvPath = composeDir.appendingPathComponent(".env").path
+        if FileManager.default.fileExists(atPath: defaultEnvPath) {
+            return ["--env-file", defaultEnvPath]
+        }
+        
         return []
     }
     
