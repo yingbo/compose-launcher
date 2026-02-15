@@ -266,6 +266,16 @@ struct SidebarRow: View {
                 .foregroundColor(item.isService ? .secondary : .primary)
                 .lineLimit(1)
             
+            if !item.isService, let file = item.file, file.envFilePath != nil {
+                Text(".env")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.accentColor.opacity(0.8))
+                    .cornerRadius(3)
+            }
+            
             Spacer()
             
             if !item.isService && item.file != nil {
@@ -321,10 +331,22 @@ struct ComposeFileRow: View {
                 .shadow(color: isRunning ? .green.opacity(0.5) : .clear, radius: 3)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(file.displayName)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(file.displayName)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    if file.envFilePath != nil {
+                        Text(".env")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(0.8))
+                            .cornerRadius(3)
+                    }
+                }
                 
                 Text(file.path)
                     .font(.system(size: 10))
