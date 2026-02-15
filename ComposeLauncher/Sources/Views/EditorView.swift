@@ -2,21 +2,33 @@ import SwiftUI
 
 struct EditorView: View {
     let file: ComposeFile
+    @ObservedObject var settingsManager = SettingsManager.shared
     @State private var content: String = ""
     @State private var originalContent: String = ""
+    @State private var envContent: String = ""
+    @State private var originalEnvContent: String = ""
     @State private var isLoading = true
     @State private var hasChanges = false
+    @State private var hasEnvChanges = false
     @State private var showingSaveAlert = false
+    @State private var showingEnvFilePicker = false
     @State private var errorMessage: String?
+    @State private var isEditingEnvFile = false
+    
+    /// The currently effective file for this compose file (from settings)
+    private var currentFile: ComposeFile {
+        settingsManager.settings.composeFiles.first(where: { $0.id == file.id }) ?? file
+    }
     
     var body: some View {
         VStack(spacing: 0) {
             // Toolbar
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(file.displayName)
+                    Text(currentFile.displayName)
                         .font(.system(size: 14, weight: .semibold))
-                    Text(file.path)
+                    
+                    Text(currentFile.path)
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
@@ -25,7 +37,7 @@ struct EditorView: View {
                 
                 Spacer()
                 
-                if hasChanges {
+                if isEditingEnvFile ? hasEnvChanges : hasChanges {
                     Text("Modified")
                         .font(.system(size: 11))
                         .foregroundColor(.orange)
@@ -35,32 +47,114 @@ struct EditorView: View {
                         .cornerRadius(4)
                 }
                 
-                Button(action: reloadContent) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
+                Group {
+                    Button(action: reloadContent) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12))
+                    }
+                    .help("Reload from disk")
+                    
+                    Button(action: openInExternalEditor) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 12))
+                    }
+                    .help("Open in external editor")
                 }
-                .buttonStyle(.plain)
-                .help("Reload from disk")
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 
-                Button(action: openInExternalEditor) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .help("Open in external editor")
-                
-                Button(action: saveContent) {
+                Button(action: isEditingEnvFile ? saveEnvContent : saveContent) {
                     Text("Save")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(!hasChanges)
+                .disabled(isEditingEnvFile ? !hasEnvChanges : !hasChanges)
                 .keyboardShortcut("s", modifiers: .command)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(Color(nsColor: .controlBackgroundColor))
+            
+            // Env File Bar
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                
+                if let envPath = currentFile.envFilePath, !envPath.isEmpty {
+                    // Has env file attached
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.green)
+                        Text(URL(fileURLWithPath: envPath).lastPathComponent)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                    }
+                    
+                    Text(envPath)
+                        .font(.system(size: 10))
+                        .foregroundColor(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    Spacer()
+                    
+                    // Edit env file toggle
+                    Button(action: {
+                        if isEditingEnvFile {
+                            isEditingEnvFile = false
+                        } else {
+                            loadEnvContent()
+                            isEditingEnvFile = true
+                        }
+                    }) {
+                        Text(isEditingEnvFile ? "Edit Compose" : "Edit .env")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help(isEditingEnvFile ? "Switch back to editing the compose file" : "Edit the .env file contents")
+                    
+                    // Replace env file
+                    Button(action: { showingEnvFilePicker = true }) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help("Replace .env file")
+                    
+                    // Remove env file
+                    Button(action: removeEnvFile) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help("Remove .env file association")
+                } else {
+                    // No env file attached
+                    Text("No .env file")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Button(action: { showingEnvFilePicker = true }) {
+                        Label("Attach .env", systemImage: "plus")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help("Attach an environment file (.env)")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
             
             Divider()
             
@@ -88,17 +182,44 @@ struct EditorView: View {
                 .padding()
                 Spacer()
             } else {
-                CodeEditor(text: $content)
-                    .onChange(of: content) { _, newValue in
-                        hasChanges = newValue != originalContent
-                    }
+                if isEditingEnvFile {
+                    CodeEditor(text: $envContent)
+                        .onChange(of: envContent) { _, newValue in
+                            hasEnvChanges = newValue != originalEnvContent
+                        }
+                } else {
+                    CodeEditor(text: $content)
+                        .onChange(of: content) { _, newValue in
+                            hasChanges = newValue != originalContent
+                        }
+                }
             }
         }
         .onAppear {
             loadContent()
         }
         .onChange(of: file.id) { _, _ in
+            isEditingEnvFile = false
             loadContent()
+        }
+        .fileImporter(
+            isPresented: $showingEnvFilePicker,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    guard url.startAccessingSecurityScopedResource() else { return }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    
+                    var updatedFile = currentFile
+                    updatedFile.envFilePath = url.path
+                    settingsManager.updateComposeFile(updatedFile)
+                }
+            case .failure(let error):
+                print("Failed to select .env file: \(error)")
+            }
         }
         .alert("Unsaved Changes", isPresented: $showingSaveAlert) {
             Button("Save") { saveContent() }
@@ -131,11 +252,34 @@ struct EditorView: View {
         }
     }
     
+    private func loadEnvContent() {
+        guard let envPath = currentFile.envFilePath else { return }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let fileContent = try String(contentsOfFile: envPath, encoding: .utf8)
+                DispatchQueue.main.async {
+                    self.envContent = fileContent
+                    self.originalEnvContent = fileContent
+                    self.hasEnvChanges = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to load .env file: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
     private func reloadContent() {
-        if hasChanges {
+        if (isEditingEnvFile ? hasEnvChanges : hasChanges) {
             showingSaveAlert = true
         } else {
-            loadContent()
+            if isEditingEnvFile {
+                loadEnvContent()
+            } else {
+                loadContent()
+            }
         }
     }
     
@@ -149,8 +293,30 @@ struct EditorView: View {
         }
     }
     
+    private func saveEnvContent() {
+        guard let envPath = currentFile.envFilePath else { return }
+        do {
+            try envContent.write(toFile: envPath, atomically: true, encoding: .utf8)
+            originalEnvContent = envContent
+            hasEnvChanges = false
+        } catch {
+            errorMessage = "Failed to save .env file: \(error.localizedDescription)"
+        }
+    }
+    
+    private func removeEnvFile() {
+        isEditingEnvFile = false
+        var updatedFile = currentFile
+        updatedFile.envFilePath = nil
+        settingsManager.updateComposeFile(updatedFile)
+    }
+    
     private func openInExternalEditor() {
-        NSWorkspace.shared.open(URL(fileURLWithPath: file.path))
+        if isEditingEnvFile, let envPath = currentFile.envFilePath {
+            NSWorkspace.shared.open(URL(fileURLWithPath: envPath))
+        } else {
+            NSWorkspace.shared.open(URL(fileURLWithPath: file.path))
+        }
     }
 }
 

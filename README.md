@@ -18,6 +18,7 @@ A native macOS application for managing and running Docker Compose files with a 
 - **Live Logs**: View real-time logs from running containers with search and filtering
 - **Log Management**: Configurable log retention (default: 100,000 lines)
 - **External Editor Support**: Open compose files in your preferred external editor
+- **.env File Support**: Automatically picks up `.env` files in the same directory, or allows selecting a custom environment file for each project
 - **Persistent Settings**: All settings saved in YAML format
 
 ## Requirements

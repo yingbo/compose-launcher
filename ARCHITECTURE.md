@@ -12,7 +12,7 @@ These are simple, immutable data structures that represent the core entities of 
 
 ### 2. Managers (`Sources/Managers`)
 Managers handle the business logic and interact with external systems (Docker, Filesystem).
-- **`DockerComposeManager`**: The core logic for interacting with the `docker compose` CLI. It handles starting/stopping containers, streaming logs, and **discovering services** defined in compose files.
+- **`DockerComposeManager`**: The core logic for interacting with the `docker compose` CLI. It handles starting/stopping containers, streaming logs, discovering services, and **managing environment files** (.env).
 - **`SettingsManager`**: Manages the persistence of app settings and the list of imported compose files.
 
 ### 3. Views (`Sources/Views`)
