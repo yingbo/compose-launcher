@@ -56,10 +56,10 @@ struct EditorView: View {
                 
                 Group {
                     Button(action: { showingEnvFilePicker = true }) {
-                        Image(systemName: "list.bullet.rectangle.portrait")
-                            .font(.system(size: 12))
+                        Label("Env File", systemImage: "gearshape")
+                            .font(.system(size: 11))
                     }
-                    .help("Select .env file")
+                    .help("Select environment file (.env)")
                     
                     Button(action: reloadContent) {
                         Image(systemName: "arrow.clockwise")
@@ -73,7 +73,8 @@ struct EditorView: View {
                     }
                     .help("Open in external editor")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 
                 Button(action: saveContent) {
                     Text("Save")
@@ -128,12 +129,16 @@ struct EditorView: View {
         }
         .fileImporter(
             isPresented: $showingEnvFilePicker,
-            allowedContentTypes: [.init(filenameExtension: "env") ?? .text, .plainText],
+            allowedContentTypes: [.item], // Allow all files since .env often has no extension or is treated as plain text
             allowsMultipleSelection: false
         ) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first {
+                    // Start accessing security-scoped resource
+                    guard url.startAccessingSecurityScopedResource() else { return }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    
                     var updatedFile = file
                     updatedFile.envFilePath = url.path
                     settingsManager.updateComposeFile(updatedFile)
