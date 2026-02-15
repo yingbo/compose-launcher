@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - release
+  pull_request:
+    branches:
+      - release
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
@@ -31,6 +38,18 @@ jobs:
           # Remove 'v' prefix if present
           VERSION=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Compute release tag
+        id: release_tag
+        run: |
+          # Use the exact tag on this commit when available; otherwise generate one.
+          EXACT_TAG=$(git tag --points-at HEAD | head -n 1)
+          if [ -n "$EXACT_TAG" ]; then
+            TAG="$EXACT_TAG"
+          else
+            TAG="v${{ steps.version.outputs.version }}-${{ github.run_number }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
       
       - name: Cache SPM dependencies
         uses: actions/cache@v4
@@ -124,12 +143,14 @@ jobs:
           zip -r "Compose-Launcher-macos.zip" "Compose Launcher.app"
       
       - name: Create Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Compose Launcher v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Compose Launcher ${{ steps.release_tag.outputs.tag }}
           body: |
-            ## Compose Launcher v${{ steps.version.outputs.version }}
+            ## Compose Launcher ${{ steps.release_tag.outputs.tag }}
             
             ### Downloads
             - **Compose-Launcher-macos.zip** - Universal Binary (Intel + Apple Silicon)
