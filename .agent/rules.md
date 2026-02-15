@@ -1,24 +1,19 @@
 # AI Agent Rules
 
-## GitHub Issues & Branching Strategy
+## GitHub Issue (Ticket) Workflow
 
-Whenever working on a GitHub issue, follow these steps:
+Follow this strict workflow when working on a GitHub issue (ticket):
 
-1.  **Preparation**
-    *   ALWAYS create a feature branch from `main` before starting work.
-    *   Feature branches should follow the naming convention: `feature/issue-[number]-[description]`.
-    *   Work ONLY on the feature branch. Do not commit directly to `main`.
-
-2.  **Implementation**
-    *   Complete the requested changes and verify them (build/test).
-
-3.  **Completion & Documentation**
-    *   **Update the Issue**: Post a comment on the GitHub issue detailing exactly what changes were made and how they were verified.
-    *   **Create a Pull Request (PR/MR)**: Once the work is done and verified, create a Pull Request from the feature branch to `main`.
-    *   **Squash & Cleanup**: The PR should be merged using the **Squash and Merge** method. After the merge is complete, the feature branch should be deleted.
-
-4.  **Review & Merging**
-    *   **Wait for User**: Do NOT merge the PR yourself. The USER will merge it manually unless they explicitly tell you to do so.
+1.  **Create Feature Branch**: Always create a new feature branch for the ticket (e.g., `feature/issue-123-description`).
+2.  **Implementation**: Work entirely on the feature branch. Implement the requested changes in the code.
+3.  **Update Ticket**: Record what you did by adding a comment to the GitHub issue.
+4.  **Update Documents**: Update any related documentation (e.g., README.md, ARCHITECTURE.md) to reflect the changes.
+5.  **Commit & Push**: Commit your changes. **Crucial**: The commit message MUST mention the ticket number (e.g., `Implement feature X (#123)`), so we can navigate from the ticket to the commits. Push the branch to the remote.
+6.  **Submit MR (PR)**: Create a Pull Request (Merge Request).
+    *   Do **NOT** merge the PR yourself.
+    *   Do **NOT** close the ticket yourself.
+    *   The USER will check the result, merge the PR, and close the ticket.
+7.  **Auto-Run Allowed**: Since work is isolated in a new feature branch, you are authorized to **auto-run** (`SafeToAutoRun: true`) the commands for committing, pushing, and creating the Merge Request (PR).
 
 ## Design Rules
 
