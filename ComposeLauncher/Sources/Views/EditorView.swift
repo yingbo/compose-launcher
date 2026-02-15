@@ -96,7 +96,7 @@ struct EditorView: View {
                     
                     Text(envPath)
                         .font(.system(size: 10))
-                        .foregroundColor(.tertiary)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     
@@ -120,7 +120,7 @@ struct EditorView: View {
                     
                     // Replace env file
                     Button(action: { showingEnvFilePicker = true }) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Image(systemName: "folder")
                             .font(.system(size: 10))
                     }
                     .buttonStyle(.bordered)
