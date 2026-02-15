@@ -39,11 +39,35 @@ Thank you for your interest in contributing to Compose Launcher! This document p
 - **`Sources/Managers`**: Business logic, Docker interaction, and persistence.
 - **`Sources/Views`**: SwiftUI components and screens.
 
+## Commit Message Guidelines
+
+When working on issues, include the issue number in your commit messages to automatically link commits to issues:
+
+- **Reference an issue**: Use `#issue-number` in the commit message
+  - Example: `Add rename functionality for flat view (#9)`
+- **Close an issue**: Use `Fixes #issue-number`, `Closes #issue-number`, or `Resolves #issue-number`
+  - Example: `Implement folder/filename naming for flat view\n\nFixes #9`
+  - The issue will be automatically closed when the PR is merged to main
+
+**Good commit message format:**
+```
+Brief summary of changes
+
+- Detailed point 1
+- Detailed point 2
+- Detailed point 3
+
+Fixes #issue-number
+```
+
 ## Pull Request Process
 
-1. Create a new branch for your feature or bug fix: `git checkout -b feature/your-feature-name`.
+1. Create a new branch for your feature or bug fix:
+   - If related to an issue: `git checkout -b feature/issue-number-brief-description`
+     - Example: `git checkout -b feature/9-flat-view-naming`
+   - If not related to an issue: `git checkout -b feature/your-feature-name`
 2. Make your changes and ensure the project builds correctly.
-3. Commit your changes with descriptive messages.
+3. Commit your changes with descriptive messages (see Commit Message Guidelines above).
 4. Push to your fork and submit a Pull Request.
 
 ## Reporting Issues
