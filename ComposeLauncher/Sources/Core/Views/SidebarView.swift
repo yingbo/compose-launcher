@@ -77,6 +77,7 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Add Compose File")
+                .accessibilityIdentifier("sidebar-add-button")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
