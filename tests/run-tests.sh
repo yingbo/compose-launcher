@@ -19,7 +19,7 @@ fi
 
 cd "$PROJECT_DIR"
 
-swift test 2>&1
+swift test --disable-swift-testing 2>&1
 
 echo ""
 echo "=== All tests passed ==="

@@ -42,6 +42,9 @@ public class SettingsManager: ObservableObject {
             let yamlString = try String(contentsOf: settingsURL, encoding: .utf8)
             let decoder = YAMLDecoder()
             settings = try decoder.decode(AppSettings.self, from: yamlString)
+        } catch is DecodingError {
+            // Corrupt or incompatible YAML should fall back to defaults silently.
+            // This avoids noisy logs during tests and for end users with bad settings files.
         } catch {
             print("Failed to load settings: \(error)")
         }
