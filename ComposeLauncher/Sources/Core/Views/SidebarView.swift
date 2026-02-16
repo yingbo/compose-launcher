@@ -267,15 +267,6 @@ struct SidebarView: View {
         }
     }
     
-    private func renameFile(_ file: ComposeFile, newName: String?) {
-        var updated = file
-        updated.customName = newName
-        settingsManager.updateComposeFile(updated)
-        if selectedFile?.id == file.id {
-            selectedFile = updated
-        }
-    }
-
     private func refreshAllServices() {
         for file in settingsManager.settings.composeFiles {
             Task {
