@@ -303,19 +303,36 @@ struct SidebarRow: View {
                     .foregroundColor(.secondary)
             }
             
-            Text(item.name)
-                .font(.system(size: 13, weight: item.file != nil && !item.isService ? .medium : .regular))
-                .foregroundColor(item.isService ? .secondary : .primary)
-                .lineLimit(1)
-            
-            if !item.isService, let file = item.file, file.envFilePath != nil {
-                Text(".env")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.accentColor.opacity(0.8))
-                    .cornerRadius(3)
+            if let file = item.file, !item.isService {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(file.displayName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+
+                        if file.envFilePath != nil {
+                            Text(".env")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.accentColor.opacity(0.8))
+                                .cornerRadius(3)
+                        }
+                    }
+
+                    Text(file.path)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            } else {
+                Text(item.name)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(item.isService ? .secondary : .primary)
+                    .lineLimit(1)
             }
             
             Spacer()
