@@ -14,7 +14,7 @@ fi
 
 cd "$PROJECT_DIR"
 
-MOCK_DOCKER=1 swift test 2>&1
+MOCK_DOCKER=1 swift test --disable-swift-testing 2>&1
 
 echo ""
 echo "=== Mock tests passed ==="
