@@ -23,7 +23,7 @@ flowchart TD
 
 ### How to Create a Release
 
-1. **Create a git tag** with the version number:
+1. **(Optional) Create a git tag** for a stable version:
    ```bash
    git tag v1.0.0
    git push origin v1.0.0
@@ -39,12 +39,16 @@ flowchart TD
    - Create a ZIP archive
    - Create a GitHub Release with the app attached
 
+Tag behavior in the workflow:
+- If `HEAD` already has a tag, that exact tag is used for the release.
+- If `HEAD` has no tag, a generated tag is used: `v<latest-tag-version>-<run_number>`.
+
 ### Configuration
 
 | Setting | Value |
 |---------|-------|
 | Trigger Branch | `release` |
-| Version Source | Git tags |
+| Version Source | Latest git tag (default `v1.0.0` if none) |
 | Architecture | Universal Binary (ARM64 + x86_64) |
 | Runner | `macos-14` (M1) |
 | Swift Version | 5.9 |
