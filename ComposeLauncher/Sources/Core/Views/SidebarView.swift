@@ -80,6 +80,7 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Add Compose File")
+                .accessibilityIdentifier("sidebar-add-button")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -256,7 +257,7 @@ struct SidebarView: View {
             }
         }
     }
-    
+
     private func renameFile(_ file: ComposeFile, newName: String?) {
         var updated = file
         updated.customName = newName
@@ -265,7 +266,7 @@ struct SidebarView: View {
             selectedFile = updated
         }
     }
-
+    
     private func refreshAllServices() {
         for file in settingsManager.settings.composeFiles {
             Task {

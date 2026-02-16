@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ContentView: View {
+public struct ContentView: View {
     @StateObject private var settingsManager = SettingsManager.shared
     @StateObject private var composeManager = DockerComposeManager.shared
     @State private var selectedFile: ComposeFile?
@@ -12,7 +12,9 @@ struct ContentView: View {
         case editor = "Editor"
     }
     
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         NavigationSplitView {
             SidebarView(
                 settingsManager: settingsManager,
@@ -32,6 +34,7 @@ struct ContentView: View {
                             ) {
                                 selectedTab = tab
                             }
+                            .accessibilityIdentifier("tab-\(tab.rawValue.lowercased())")
                         }
                         Spacer()
                     }
@@ -65,6 +68,7 @@ struct ContentView: View {
                     Image(systemName: "gear")
                 }
                 .help("Settings")
+                .accessibilityIdentifier("settings-button")
             }
         }
         .sheet(isPresented: $showingSettings) {
