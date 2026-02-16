@@ -12,6 +12,9 @@ struct SidebarView: View {
     @State private var expandedItems: Set<String> = []
     @State private var cachedServices: [UUID: [String]] = [:]
     @State private var runningServices: [UUID: [String]] = [:]
+    @State private var showingRenameAlert = false
+    @State private var fileToRename: ComposeFile?
+    @State private var renameText: String = ""
     
     struct SidebarItem: Identifiable {
         let id: String
@@ -95,6 +98,13 @@ struct SidebarView: View {
                         isServiceRunning: item.isService && item.file.map { runningServices[$0.id]?.contains(item.name) ?? false } ?? false,
                         onStart: { if let file = item.file { startCompose(file) } },
                         onStop: { if let file = item.file { stopCompose(file) } },
+                        onRename: {
+                            if let file = item.file {
+                                fileToRename = file
+                                renameText = file.displayName
+                                showingRenameAlert = true
+                            }
+                        },
                         onRemove: {
                             if let file = item.file {
                                 fileToDelete = file
@@ -117,6 +127,11 @@ struct SidebarView: View {
                                 onSelect: { selectedFile = file },
                                 onStart: { startCompose(file) },
                                 onStop: { stopCompose(file) },
+                                onRename: {
+                                    fileToRename = file
+                                    renameText = file.displayName
+                                    showingRenameAlert = true
+                                },
                                 onRemove: {
                                     fileToDelete = file
                                     showingDeleteConfirmation = true
@@ -144,6 +159,22 @@ struct SidebarView: View {
             }
         } message: { file in
             Text("Are you sure you want to remove '\(file.displayName)'? This will not delete the file from your disk.")
+        }
+        .alert("Rename", isPresented: $showingRenameAlert) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) { }
+            Button("Reset to Default") {
+                if let file = fileToRename {
+                    renameFile(file, newName: nil)
+                }
+            }
+            Button("Rename") {
+                if let file = fileToRename {
+                    renameFile(file, newName: renameText)
+                }
+            }
+        } message: {
+            Text("Enter a new display name for this compose file.")
         }
         .fileImporter(
             isPresented: $showingFilePicker,
@@ -186,7 +217,7 @@ struct SidebarView: View {
                 guard !existingPaths.contains(url.path) else { continue }
                 
                 let file = ComposeFile(
-                    name: url.deletingLastPathComponent().lastPathComponent,
+                    name: "",
                     path: url.path
                 )
                 settingsManager.addComposeFile(file)
@@ -226,6 +257,15 @@ struct SidebarView: View {
             }
         }
     }
+
+    private func renameFile(_ file: ComposeFile, newName: String?) {
+        var updated = file
+        updated.customName = newName
+        settingsManager.updateComposeFile(updated)
+        if selectedFile?.id == file.id {
+            selectedFile = updated
+        }
+    }
     
     private func refreshAllServices() {
         for file in settingsManager.settings.composeFiles {
@@ -248,6 +288,7 @@ struct SidebarRow: View {
     let isServiceRunning: Bool
     let onStart: () -> Void
     let onStop: () -> Void
+    let onRename: () -> Void
     let onRemove: () -> Void
     
     var body: some View {
@@ -305,6 +346,10 @@ struct SidebarRow: View {
         }
         .contextMenu {
             if item.file != nil && !item.isService {
+                Button(action: onRename) {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Divider()
                 Button(role: .destructive, action: onRemove) {
                     Label("Remove", systemImage: "trash")
                 }
@@ -321,6 +366,7 @@ struct ComposeFileRow: View {
     let onSelect: () -> Void
     let onStart: () -> Void
     let onStop: () -> Void
+    let onRename: () -> Void
     let onRemove: () -> Void
     
     var body: some View {
@@ -389,6 +435,10 @@ struct ComposeFileRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .contextMenu {
+            Button(action: onRename) {
+                Label("Rename", systemImage: "pencil")
+            }
+            Divider()
             Button(role: .destructive, action: onRemove) {
                 Label("Remove", systemImage: "trash")
             }

@@ -9,21 +9,31 @@ final class ComposeFileTests: XCTestCase {
         XCTAssertFalse(file.id.uuidString.isEmpty)
     }
 
-    func testDisplayNameReturnsNameWhenNotEmpty() {
-        let file = ComposeFile(name: "my-project", path: "/tmp/docker-compose.yml")
+    func testDisplayNameUsesCustomNameWhenPresent() {
+        let file = ComposeFile(
+            name: "",
+            path: "/tmp/docker-compose.yml",
+            customName: "my-project"
+        )
         XCTAssertEqual(file.displayName, "my-project")
     }
 
-    func testDisplayNameReturnsFolderNameWhenEmpty() {
+    func testDisplayNameForStandardComposeFilenameUsesFolder() {
         let file = ComposeFile(name: "", path: "/Users/test/my-project/docker-compose.yml")
         XCTAssertEqual(file.displayName, "my-project")
+    }
+
+    func testDisplayNameForNonStandardComposeFilenameUsesFolderAndFilename() {
+        let file = ComposeFile(name: "", path: "/Users/test/my-project/docker-compose.prod.yml")
+        XCTAssertEqual(file.displayName, "my-project/docker-compose.prod.yml")
     }
 
     func testCodableRoundTrip() throws {
         let original = ComposeFile(
             name: "test-project",
             path: "/tmp/compose.yml",
-            envFilePath: "/tmp/.env"
+            envFilePath: "/tmp/.env",
+            customName: "custom-test-project"
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(ComposeFile.self, from: data)
