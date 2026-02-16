@@ -4,29 +4,35 @@ Thank you for your interest in contributing to Compose Launcher! This document p
 
 ## Getting Started
 
-### Prerequisites
+### Development Prerequisites
 
 - macOS 14.0 or later
 - Xcode 15+
-- Docker Desktop installed and running
+- Docker Desktop (required for integration tests)
 
 ### Setup
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/compose-launcher.git
+   git clone <your-fork-or-repo-url>
    cd compose-launcher
    ```
 
-2. Open the `ComposeLauncher` directory in Xcode:
+2. Open the package in Xcode:
    ```bash
    open ComposeLauncher/Package.swift
    ```
-   *Note: Xcode will automatically resolve dependencies.*
 
-3. Run the project (⌘R).
+3. Build and run tests:
+   ```bash
+   ./tests/run-tests-mock.sh
+   ```
+   For Docker-backed integration tests:
+   ```bash
+   ./tests/run-tests.sh
+   ```
 
-## Code Style
+## Code Guidelines
 
 - Follow the [Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines/).
 - Use 4 spaces for indentation.
@@ -35,9 +41,13 @@ Thank you for your interest in contributing to Compose Launcher! This document p
 
 ## Project Structure
 
-- **`Sources/Models`**: Plain data structures and enums.
-- **`Sources/Managers`**: Business logic, Docker interaction, and persistence.
-- **`Sources/Views`**: SwiftUI components and screens.
+- **`ComposeLauncher/Sources/App`**: App entrypoint.
+- **`ComposeLauncher/Sources/Core/Models`**: Data structures and persisted types.
+- **`ComposeLauncher/Sources/Core/Managers`**: Docker interaction and settings persistence.
+- **`ComposeLauncher/Sources/Core/Views`**: SwiftUI components and screens.
+- **`ComposeLauncher/Tests`**: Unit/integration tests.
+
+For design details and runtime architecture, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Commit Message Guidelines
 
