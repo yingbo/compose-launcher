@@ -34,3 +34,4 @@ DerivedData/
 Compose Launcher.app/
 *.o
 *.out
+/.claude/
