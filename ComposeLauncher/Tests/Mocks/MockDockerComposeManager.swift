@@ -8,6 +8,7 @@ class MockDockerComposeManager: DockerComposeManaging {
     private var _runningFiles: Set<UUID> = []
     private var _services: [UUID: [String]] = [:]
     private var _runningServices: [UUID: [String]] = [:]
+    private var _detailedRunningServices: [UUID: [ServiceInfo]] = [:]
 
     // Call tracking for test assertions
     var startComposeCallCount = 0
@@ -55,6 +56,10 @@ class MockDockerComposeManager: DockerComposeManaging {
         _runningServices[file.id] ?? []
     }
 
+    func getDetailedRunningServices(for file: ComposeFile) async -> [ServiceInfo] {
+        _detailedRunningServices[file.id] ?? []
+    }
+
     func clearLogs(for fileId: UUID? = nil) {
         if let fileId = fileId {
             logs.removeAll { $0.composeFileId == fileId }
@@ -71,6 +76,10 @@ class MockDockerComposeManager: DockerComposeManaging {
 
     func setRunningServices(_ services: [String], for fileId: UUID) {
         _runningServices[fileId] = services
+    }
+
+    func setDetailedRunningServices(_ services: [ServiceInfo], for fileId: UUID) {
+        _detailedRunningServices[fileId] = services
     }
 
     func markAsRunning(_ fileId: UUID) {

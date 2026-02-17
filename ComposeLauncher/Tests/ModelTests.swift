@@ -100,6 +100,150 @@ final class AppSettingsTests: XCTestCase {
     }
 }
 
+final class ServiceInfoTests: XCTestCase {
+    func testDecodingFromDockerJSON() throws {
+        let json = """
+        {
+            "Service": "web",
+            "State": "running",
+            "Status": "Up 2 hours",
+            "Name": "myproject-web-1",
+            "Ports": "0.0.0.0:8080->80/tcp",
+            "Publishers": [
+                {"URL": "0.0.0.0", "TargetPort": 80, "PublishedPort": 8080, "Protocol": "tcp"}
+            ]
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertEqual(info.Service, "web")
+        XCTAssertEqual(info.State, "running")
+        XCTAssertEqual(info.Status, "Up 2 hours")
+        XCTAssertEqual(info.Name, "myproject-web-1")
+        XCTAssertEqual(info.Publishers.count, 1)
+        XCTAssertEqual(info.Publishers[0].PublishedPort, 8080)
+        XCTAssertEqual(info.Publishers[0].TargetPort, 80)
+        XCTAssertEqual(info.Publishers[0].URL, "0.0.0.0")
+        XCTAssertEqual(info.Publishers[0].Protocol, "tcp")
+    }
+
+    func testDecodingWithEmptyPublishers() throws {
+        let json = """
+        {
+            "Service": "redis",
+            "State": "running",
+            "Status": "Up 5 minutes",
+            "Name": "myproject-redis-1",
+            "Ports": "",
+            "Publishers": []
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertEqual(info.Service, "redis")
+        XCTAssertTrue(info.Publishers.isEmpty)
+    }
+
+    func testDecodingMultiplePublishers() throws {
+        let json = """
+        {
+            "Service": "nginx",
+            "State": "running",
+            "Status": "Up 1 hour",
+            "Name": "myproject-nginx-1",
+            "Ports": "0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp",
+            "Publishers": [
+                {"URL": "0.0.0.0", "TargetPort": 80, "PublishedPort": 80, "Protocol": "tcp"},
+                {"URL": "0.0.0.0", "TargetPort": 443, "PublishedPort": 443, "Protocol": "tcp"}
+            ]
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertEqual(info.Publishers.count, 2)
+        XCTAssertEqual(info.Publishers[0].PublishedPort, 80)
+        XCTAssertEqual(info.Publishers[1].PublishedPort, 443)
+    }
+
+    func testNonCodedPropertiesAreNilAfterDecoding() throws {
+        let json = """
+        {
+            "Service": "web",
+            "State": "running",
+            "Status": "",
+            "Name": "web-1",
+            "Ports": "",
+            "Publishers": []
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertNil(info.composeFileId)
+        XCTAssertNil(info.composeFilePath)
+        XCTAssertNil(info.composeFileDisplayName)
+    }
+
+    func testPortConflictDetection() {
+        let s1 = ServiceInfo(
+            Service: "web", State: "running", Name: "p1-web-1",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")]
+        )
+        let s2 = ServiceInfo(
+            Service: "api", State: "running", Name: "p2-api-1",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 3000, PublishedPort: 8080, Protocol: "tcp")]
+        )
+        let s3 = ServiceInfo(
+            Service: "db", State: "running", Name: "p1-db-1",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 5432, PublishedPort: 5432, Protocol: "tcp")]
+        )
+
+        var portMap: [Int: Int] = [:]
+        for service in [s1, s2, s3] {
+            for pub in service.Publishers where pub.PublishedPort > 0 {
+                portMap[pub.PublishedPort, default: 0] += 1
+            }
+        }
+        let conflicts = Set(portMap.filter { $0.value > 1 }.keys)
+
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertTrue(conflicts.contains(8080))
+        XCTAssertFalse(conflicts.contains(5432))
+    }
+
+    func testInitWithAllParameters() {
+        let fileId = UUID()
+        let info = ServiceInfo(
+            Service: "web",
+            State: "running",
+            Status: "Up 2 hours",
+            Name: "myproject-web-1",
+            Ports: "0.0.0.0:8080->80/tcp",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")],
+            composeFileId: fileId,
+            composeFilePath: "/tmp/compose.yml",
+            composeFileDisplayName: "my-project"
+        )
+        XCTAssertEqual(info.composeFileId, fileId)
+        XCTAssertEqual(info.composeFilePath, "/tmp/compose.yml")
+        XCTAssertEqual(info.composeFileDisplayName, "my-project")
+    }
+}
+
+final class PortPublisherTests: XCTestCase {
+    func testId() {
+        let pub = PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")
+        XCTAssertEqual(pub.id, "0.0.0.0:8080->80/tcp")
+    }
+
+    func testHashable() {
+        let pub1 = PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")
+        let pub2 = PortPublisher(URL: "0.0.0.0", TargetPort: 443, PublishedPort: 443, Protocol: "tcp")
+        let pub3 = PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")
+        let set: Set<PortPublisher> = [pub1, pub2, pub3]
+        XCTAssertEqual(set.count, 2)
+    }
+}
+
 final class SidebarDisplayModeTests: XCTestCase {
     func testRawValues() {
         XCTAssertEqual(SidebarDisplayMode.flat.rawValue, "Flat List")

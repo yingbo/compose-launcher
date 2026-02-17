@@ -149,9 +149,9 @@ public class DockerComposeManager: DockerComposeManaging {
         return []
     }
 
-    public struct ServiceInfo: Codable {
-        public let Service: String
-        public let State: String
+    private struct BasicServiceInfo: Codable {
+        let Service: String
+        let State: String
     }
 
     public func getRunningServices(for file: ComposeFile) async -> [String] {
@@ -174,7 +174,7 @@ public class DockerComposeManager: DockerComposeManaging {
             if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
 
             // Try parsing as a list first
-            if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
+            if let list = try? JSONDecoder().decode([BasicServiceInfo].self, from: data) {
                 return list.filter { $0.State == "running" }.map { $0.Service }
             }
 
@@ -182,7 +182,7 @@ public class DockerComposeManager: DockerComposeManaging {
             let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
             var runningServices: [String] = []
             for line in lines {
-                if let info = try? JSONDecoder().decode(ServiceInfo.self, from: line.data(using: .utf8)!) {
+                if let info = try? JSONDecoder().decode(BasicServiceInfo.self, from: line.data(using: .utf8)!) {
                     if info.State == "running" {
                         runningServices.append(info.Service)
                     }
@@ -191,6 +191,55 @@ public class DockerComposeManager: DockerComposeManaging {
             return runningServices
         } catch {
             print("Failed to get service statuses: \(error)")
+        }
+        return []
+    }
+
+    public func getDetailedRunningServices(for file: ComposeFile) async -> [ServiceInfo] {
+        let process = Process()
+        let pipe = Pipe()
+
+        process.executableURL = URL(fileURLWithPath: dockerPath)
+        process.arguments = ["compose", "-f", file.path] + getEnvFileArguments(for: file) + ["ps", "--format", "json"]
+        process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
+        process.standardOutput = pipe
+        setupEnvironment(for: process)
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
+            let output = String(data: data, encoding: .utf8) ?? ""
+            if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
+
+            var services: [ServiceInfo] = []
+
+            // Try parsing as a JSON array first
+            if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
+                services = list
+            } else {
+                // Handle line-delimited JSON (older Docker Compose versions)
+                let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                for line in lines {
+                    if let lineData = line.data(using: .utf8),
+                       let info = try? JSONDecoder().decode(ServiceInfo.self, from: lineData) {
+                        services.append(info)
+                    }
+                }
+            }
+
+            return services
+                .filter { $0.State == "running" }
+                .map { service in
+                    var s = service
+                    s.composeFileId = file.id
+                    s.composeFilePath = file.path
+                    s.composeFileDisplayName = file.displayName
+                    return s
+                }
+        } catch {
+            print("Failed to get detailed service statuses: \(error)")
         }
         return []
     }

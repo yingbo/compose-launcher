@@ -32,6 +32,13 @@ struct ComposeLauncherApp: App {
 
                 Divider()
 
+                Button("Show Running Services") {
+                    NotificationCenter.default.post(name: .showServicesTab, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+
+                Divider()
+
                 Button("Remove Selected...") {
                     NotificationCenter.default.post(name: .removeCompose, object: nil)
                 }

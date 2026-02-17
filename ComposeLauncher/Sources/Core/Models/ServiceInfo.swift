@@ -1,0 +1,63 @@
+import Foundation
+
+/// Represents a port publisher from docker compose ps JSON output
+public struct PortPublisher: Codable, Hashable, Identifiable {
+    public var id: String {
+        "\(URL):\(PublishedPort)->\(TargetPort)/\(`Protocol`)"
+    }
+
+    public let URL: String
+    public let TargetPort: Int
+    public let PublishedPort: Int
+    public let `Protocol`: String
+
+    public init(URL: String, TargetPort: Int, PublishedPort: Int, Protocol proto: String) {
+        self.URL = URL
+        self.TargetPort = TargetPort
+        self.PublishedPort = PublishedPort
+        self.Protocol = proto
+    }
+}
+
+/// Full service info from `docker compose ps --format json`
+public struct ServiceInfo: Codable, Hashable, Identifiable {
+    public var id: String { "\(composeFileId?.uuidString ?? "unknown")-\(Name)" }
+
+    public let Service: String
+    public let State: String
+    public let Status: String
+    public let Name: String
+    public let Ports: String
+    public let Publishers: [PortPublisher]
+
+    // Added after parsing to track which compose file this belongs to
+    public var composeFileId: UUID?
+    public var composeFilePath: String?
+    public var composeFileDisplayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case Service, State, Status, Name, Ports, Publishers
+    }
+
+    public init(
+        Service: String,
+        State: String,
+        Status: String = "",
+        Name: String = "",
+        Ports: String = "",
+        Publishers: [PortPublisher] = [],
+        composeFileId: UUID? = nil,
+        composeFilePath: String? = nil,
+        composeFileDisplayName: String? = nil
+    ) {
+        self.Service = Service
+        self.State = State
+        self.Status = Status
+        self.Name = Name
+        self.Ports = Ports
+        self.Publishers = Publishers
+        self.composeFileId = composeFileId
+        self.composeFilePath = composeFilePath
+        self.composeFileDisplayName = composeFileDisplayName
+    }
+}
