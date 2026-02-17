@@ -29,7 +29,7 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 cp "${BUILD_DIR}/ComposeLauncher" "${APP_BUNDLE}/Contents/MacOS/"
 
 # Copy icon
-cp "./ComposeLauncher/Sources/Resources/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/"
+cp "./ComposeLauncher/Sources/Core/Resources/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/"
 
 # Create Info.plist
 cat > "${APP_BUNDLE}/Contents/Info.plist" << EOF
@@ -52,7 +52,7 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>

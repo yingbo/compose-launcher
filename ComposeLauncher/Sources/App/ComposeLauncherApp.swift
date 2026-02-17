@@ -1,4 +1,5 @@
 import SwiftUI
+import ComposeLauncherCore
 
 @main
 struct ComposeLauncherApp: App {
@@ -10,43 +11,43 @@ struct ComposeLauncherApp: App {
         .defaultSize(width: 1100, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) { }
-            
+
             CommandMenu("Compose") {
                 Button("Add Compose File...") {
                     NotificationCenter.default.post(name: .addComposeFile, object: nil)
                 }
                 .keyboardShortcut("o", modifiers: .command)
-                
+
                 Divider()
-                
+
                 Button("Start Selected") {
                     NotificationCenter.default.post(name: .startCompose, object: nil)
                 }
                 .keyboardShortcut("r", modifiers: .command)
-                
+
                 Button("Stop Selected") {
                     NotificationCenter.default.post(name: .stopCompose, object: nil)
                 }
                 .keyboardShortcut(".", modifiers: .command)
-                
+
                 Divider()
-                
+
+                Button("Show Running Services") {
+                    NotificationCenter.default.post(name: .showServicesTab, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+
+                Divider()
+
                 Button("Remove Selected...") {
                     NotificationCenter.default.post(name: .removeCompose, object: nil)
                 }
                 .keyboardShortcut(.delete, modifiers: .command)
             }
         }
-        
+
         Settings {
             SettingsView(settingsManager: SettingsManager.shared)
         }
     }
-}
-
-extension Notification.Name {
-    static let addComposeFile = Notification.Name("addComposeFile")
-    static let startCompose = Notification.Name("startCompose")
-    static let stopCompose = Notification.Name("stopCompose")
-    static let removeCompose = Notification.Name("removeCompose")
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SettingsView: View {
+public struct SettingsView: View {
     @ObservedObject var settingsManager: SettingsManager
     @Environment(\.dismiss) private var dismiss
     
@@ -8,7 +8,11 @@ struct SettingsView: View {
     @State private var dockerPath: String = ""
     @State private var sidebarDisplayMode: SidebarDisplayMode = .flat
     
-    var body: some View {
+    public init(settingsManager: SettingsManager) {
+        self.settingsManager = settingsManager
+    }
+
+    public var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -39,6 +43,7 @@ struct SettingsView: View {
                                 TextField("Path to docker", text: $dockerPath)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 13, design: .monospaced))
+                                    .accessibilityIdentifier("settings-docker-path")
                                 
                                 Button("Browse") {
                                     browseForDocker()
@@ -144,6 +149,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("settings-save-button")
             }
             .padding(20)
         }

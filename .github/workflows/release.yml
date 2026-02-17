@@ -97,7 +97,7 @@ jobs:
           cp ComposeLauncher/.build/universal/ComposeLauncher "Compose Launcher.app/Contents/MacOS/"
           
           # Copy icon
-          cp ComposeLauncher/Sources/Resources/AppIcon.icns "Compose Launcher.app/Contents/Resources/"
+          cp ComposeLauncher/Sources/Core/Resources/AppIcon.icns "Compose Launcher.app/Contents/Resources/"
           
           # Create Info.plist with version
           cat > "Compose Launcher.app/Contents/Info.plist" << EOF
