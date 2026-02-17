@@ -217,6 +217,9 @@ struct ServicesView: View {
     private func startAutoRefresh() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
             Task { @MainActor in
+                // Skip tick if a refresh is already in-flight to avoid
+                // cancelling work and potentially starving updates
+                guard !isLoading else { return }
                 scheduleRefresh()
             }
         }
