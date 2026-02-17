@@ -56,8 +56,14 @@ class MockDockerComposeManager: DockerComposeManaging {
         _runningServices[file.id] ?? []
     }
 
-    func getDetailedRunningServices(for file: ComposeFile) async -> [ServiceInfo] {
-        _detailedRunningServices[file.id] ?? []
+    var shouldThrowOnDetailedServices = false
+    var detailedServicesError: Error = NSError(domain: "MockDocker", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock detailed services error"])
+
+    func getDetailedRunningServices(for file: ComposeFile) async throws -> [ServiceInfo] {
+        if shouldThrowOnDetailedServices {
+            throw detailedServicesError
+        }
+        return _detailedRunningServices[file.id] ?? []
     }
 
     func clearLogs(for fileId: UUID? = nil) {

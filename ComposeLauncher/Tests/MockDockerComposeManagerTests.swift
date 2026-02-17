@@ -91,12 +91,12 @@ final class MockDockerComposeManagerTests: XCTestCase {
 
     // MARK: - Detailed Running Services
 
-    func testGetDetailedRunningServicesReturnsEmptyByDefault() async {
-        let services = await sut.getDetailedRunningServices(for: testFile)
+    func testGetDetailedRunningServicesReturnsEmptyByDefault() async throws {
+        let services = try await sut.getDetailedRunningServices(for: testFile)
         XCTAssertTrue(services.isEmpty)
     }
 
-    func testGetDetailedRunningServicesReturnsConfigured() async {
+    func testGetDetailedRunningServicesReturnsConfigured() async throws {
         let info = ServiceInfo(
             Service: "web",
             State: "running",
@@ -110,14 +110,14 @@ final class MockDockerComposeManagerTests: XCTestCase {
         )
         sut.setDetailedRunningServices([info], for: testFile.id)
 
-        let services = await sut.getDetailedRunningServices(for: testFile)
+        let services = try await sut.getDetailedRunningServices(for: testFile)
         XCTAssertEqual(services.count, 1)
         XCTAssertEqual(services[0].Service, "web")
         XCTAssertEqual(services[0].Publishers.count, 1)
         XCTAssertEqual(services[0].Publishers[0].PublishedPort, 8080)
     }
 
-    func testGetDetailedRunningServicesMultipleFiles() async {
+    func testGetDetailedRunningServicesMultipleFiles() async throws {
         let otherFile = ComposeFile(name: "other", path: "/tmp/other.yml")
 
         let info1 = ServiceInfo(Service: "web", State: "running", Name: "p1-web-1", composeFileId: testFile.id)
@@ -126,8 +126,8 @@ final class MockDockerComposeManagerTests: XCTestCase {
         sut.setDetailedRunningServices([info1], for: testFile.id)
         sut.setDetailedRunningServices([info2], for: otherFile.id)
 
-        let services1 = await sut.getDetailedRunningServices(for: testFile)
-        let services2 = await sut.getDetailedRunningServices(for: otherFile)
+        let services1 = try await sut.getDetailedRunningServices(for: testFile)
+        let services2 = try await sut.getDetailedRunningServices(for: otherFile)
         XCTAssertEqual(services1.count, 1)
         XCTAssertEqual(services1[0].Service, "web")
         XCTAssertEqual(services2.count, 1)
@@ -143,6 +143,16 @@ final class MockDockerComposeManagerTests: XCTestCase {
             XCTFail("Expected error to be thrown")
         } catch {
             XCTAssertFalse(sut.isRunning(testFile))
+        }
+    }
+
+    func testGetDetailedRunningServicesThrowsWhenConfigured() async {
+        sut.shouldThrowOnDetailedServices = true
+        do {
+            _ = try await sut.getDetailedRunningServices(for: testFile)
+            XCTFail("Expected error to be thrown")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Mock detailed services error"))
         }
     }
 

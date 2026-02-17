@@ -195,7 +195,7 @@ public class DockerComposeManager: DockerComposeManaging {
         return []
     }
 
-    public func getDetailedRunningServices(for file: ComposeFile) async -> [ServiceInfo] {
+    public func getDetailedRunningServices(for file: ComposeFile) async throws -> [ServiceInfo] {
         let dockerPath = self.dockerPath
         let envArgs = getEnvFileArguments(for: file)
         let filePath = file.path
@@ -203,15 +203,17 @@ public class DockerComposeManager: DockerComposeManaging {
         let displayName = file.displayName
 
         // Run process off the main thread to avoid UI stalls
-        let services: [ServiceInfo] = await withCheckedContinuation { continuation in
+        let result: Result<[ServiceInfo], Error> = await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 let pipe = Pipe()
+                let errorPipe = Pipe()
 
                 process.executableURL = URL(fileURLWithPath: dockerPath)
                 process.arguments = ["compose", "-f", filePath] + envArgs + ["ps", "--format", "json"]
                 process.currentDirectoryURL = URL(fileURLWithPath: filePath).deletingLastPathComponent()
                 process.standardOutput = pipe
+                process.standardError = errorPipe
 
                 // Setup environment inline (avoid accessing MainActor state)
                 var env = ProcessInfo.processInfo.environment
@@ -228,11 +230,26 @@ public class DockerComposeManager: DockerComposeManaging {
                 do {
                     try process.run()
                     process.waitUntilExit()
+
+                    let status = process.terminationStatus
+                    if status != 0 {
+                        let stderrData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        let message = stderrText.isEmpty
+                            ? "docker compose ps exited with status \(status)"
+                            : stderrText
+                        continuation.resume(returning: .failure(
+                            NSError(domain: "DockerComposeManager", code: Int(status),
+                                    userInfo: [NSLocalizedDescriptionKey: message])
+                        ))
+                        return
+                    }
+
                     let data = pipe.fileHandleForReading.readDataToEndOfFile()
 
                     let output = String(data: data, encoding: .utf8) ?? ""
                     if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        continuation.resume(returning: [])
+                        continuation.resume(returning: .success([]))
                         return
                     }
 
@@ -250,7 +267,7 @@ public class DockerComposeManager: DockerComposeManaging {
                         }
                     }
 
-                    let result = parsed
+                    let services = parsed
                         .filter { $0.State == "running" }
                         .map { service in
                             var s = service
@@ -259,14 +276,13 @@ public class DockerComposeManager: DockerComposeManaging {
                             s.composeFileDisplayName = displayName
                             return s
                         }
-                    continuation.resume(returning: result)
+                    continuation.resume(returning: .success(services))
                 } catch {
-                    print("Failed to get detailed service statuses: \(error)")
-                    continuation.resume(returning: [])
+                    continuation.resume(returning: .failure(error))
                 }
             }
         }
-        return services
+        return try result.get()
     }
 
     private func getEnvFileArguments(for file: ComposeFile) -> [String] {

@@ -12,6 +12,7 @@ struct ServicesView: View {
     @State private var lastRefresh: Date = Date()
     @State private var refreshTask: Task<Void, Never>?
     @State private var cachedConflicts: Set<PortBinding> = []
+    @State private var refreshError: String?
 
     private var filteredServices: [ServiceInfo] {
         guard !searchText.isEmpty else { return allServices }
@@ -40,12 +41,40 @@ struct ServicesView: View {
         cachedConflicts.contains(PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol))
     }
 
+    /// Parse host bindings from Docker Compose `Ports` text (e.g. "0.0.0.0:8080->80/tcp, :::443->443/tcp").
+    /// Used as a fallback for conflict detection when `Publishers` is absent.
+    static func parsePortBindings(from portsText: String) -> [PortBinding] {
+        let portEntries = portsText.components(separatedBy: ", ")
+        var bindings: [PortBinding] = []
+        for entry in portEntries {
+            guard let arrowRange = entry.range(of: "->") else { continue }
+            let left = String(entry[entry.startIndex..<arrowRange.lowerBound])
+            let right = String(entry[arrowRange.upperBound...])
+
+            let rightParts = right.split(separator: "/", maxSplits: 1)
+            let proto = rightParts.count > 1 ? String(rightParts[1]) : "tcp"
+
+            guard let lastColon = left.lastIndex(of: ":") else { continue }
+            let hostPart = String(left[left.startIndex..<lastColon])
+            guard let port = Int(left[left.index(after: lastColon)...]), port > 0 else { continue }
+
+            bindings.append(PortBinding(url: hostPart, port: port, proto: proto))
+        }
+        return bindings
+    }
+
     private static func computeConflicts(from services: [ServiceInfo]) -> Set<PortBinding> {
         var bindingCount: [PortBinding: Int] = [:]
         for service in services {
-            for pub in service.Publishers where pub.PublishedPort > 0 {
-                let binding = PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
-                bindingCount[binding, default: 0] += 1
+            if !service.Publishers.isEmpty {
+                for pub in service.Publishers where pub.PublishedPort > 0 {
+                    let binding = PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
+                    bindingCount[binding, default: 0] += 1
+                }
+            } else if !service.Ports.isEmpty {
+                for binding in parsePortBindings(from: service.Ports) {
+                    bindingCount[binding, default: 0] += 1
+                }
             }
         }
         return Set(bindingCount.filter { $0.value > 1 }.keys)
@@ -82,6 +111,7 @@ struct ServicesView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
+                .disabled(isLoading)
                 .help("Refresh services")
                 .accessibilityIdentifier("services-refresh-button")
             }
@@ -105,6 +135,31 @@ struct ServicesView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(Color.orange.opacity(0.1))
+
+                Divider()
+            }
+
+            // Error banner
+            if let error = refreshError {
+                HStack(spacing: 8) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red)
+                        .font(.system(size: 12))
+                    Text(error)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.red)
+                        .lineLimit(2)
+                    Spacer()
+                    Button(action: { refreshError = nil }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.red.opacity(0.1))
 
                 Divider()
             }
@@ -191,7 +246,7 @@ struct ServicesView: View {
     // MARK: - Data
 
     private func scheduleRefresh() {
-        refreshTask?.cancel()
+        guard !isLoading else { return }
         refreshTask = Task {
             await performRefresh()
         }
@@ -199,19 +254,25 @@ struct ServicesView: View {
 
     private func performRefresh() async {
         isLoading = true
+        defer { isLoading = false }
         var collected: [ServiceInfo] = []
+        var errors: [String] = []
 
         for file in settingsManager.settings.composeFiles {
             if Task.isCancelled { return }
-            let services = await composeManager.getDetailedRunningServices(for: file)
-            collected.append(contentsOf: services)
+            do {
+                let services = try await composeManager.getDetailedRunningServices(for: file)
+                collected.append(contentsOf: services)
+            } catch {
+                errors.append("\(file.displayName): \(error.localizedDescription)")
+            }
         }
 
         guard !Task.isCancelled else { return }
         allServices = collected
         cachedConflicts = Self.computeConflicts(from: collected)
+        refreshError = errors.isEmpty ? nil : errors.joined(separator: "; ")
         lastRefresh = Date()
-        isLoading = false
     }
 
     private func startAutoRefresh() {

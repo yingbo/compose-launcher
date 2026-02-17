@@ -285,6 +285,63 @@ final class ServiceInfoTests: XCTestCase {
         XCTAssertTrue(info.Publishers.isEmpty, "Publishers should be empty when omitted from JSON")
     }
 
+    func testParsePortBindingsSimple() {
+        let bindings = ServicesView.parsePortBindings(from: "0.0.0.0:8080->80/tcp")
+        XCTAssertEqual(bindings.count, 1)
+        XCTAssertEqual(bindings[0].url, "0.0.0.0")
+        XCTAssertEqual(bindings[0].port, 8080)
+        XCTAssertEqual(bindings[0].proto, "tcp")
+    }
+
+    func testParsePortBindingsMultiple() {
+        let bindings = ServicesView.parsePortBindings(from: "0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp")
+        XCTAssertEqual(bindings.count, 2)
+        XCTAssertEqual(bindings[0].port, 80)
+        XCTAssertEqual(bindings[1].port, 443)
+    }
+
+    func testParsePortBindingsIPv6() {
+        let bindings = ServicesView.parsePortBindings(from: ":::8080->80/tcp")
+        XCTAssertEqual(bindings.count, 1)
+        XCTAssertEqual(bindings[0].url, "::")
+        XCTAssertEqual(bindings[0].port, 8080)
+    }
+
+    func testParsePortBindingsSkipsExposedOnly() {
+        // "80/tcp" has no host binding — should be skipped
+        let bindings = ServicesView.parsePortBindings(from: "80/tcp")
+        XCTAssertTrue(bindings.isEmpty)
+    }
+
+    func testConflictDetectionWithPortsOnlyServices() {
+        // Two services with same host binding via Ports text (no Publishers)
+        let s1 = ServiceInfo(
+            Service: "web", State: "running", Name: "p1-web-1",
+            Ports: "0.0.0.0:8080->80/tcp"
+        )
+        let s2 = ServiceInfo(
+            Service: "api", State: "running", Name: "p2-api-1",
+            Ports: "0.0.0.0:8080->3000/tcp"
+        )
+        // Use the same logic as ServicesView.computeConflicts
+        var bindingCount: [ServicesView.PortBinding: Int] = [:]
+        for service in [s1, s2] {
+            if !service.Publishers.isEmpty {
+                for pub in service.Publishers where pub.PublishedPort > 0 {
+                    let binding = ServicesView.PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
+                    bindingCount[binding, default: 0] += 1
+                }
+            } else if !service.Ports.isEmpty {
+                for binding in ServicesView.parsePortBindings(from: service.Ports) {
+                    bindingCount[binding, default: 0] += 1
+                }
+            }
+        }
+        let conflicts = Set(bindingCount.filter { $0.value > 1 }.keys)
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertTrue(conflicts.contains(ServicesView.PortBinding(url: "0.0.0.0", port: 8080, proto: "tcp")))
+    }
+
     func testIdUniquenessWithEmptyNames() {
         // Two services in the same compose file with empty Name should still get distinct IDs
         let fileId = UUID()
