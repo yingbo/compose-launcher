@@ -19,7 +19,8 @@ public struct PortPublisher: Codable, Hashable, Identifiable {
     }
 }
 
-/// Full service info from `docker compose ps --format json`
+/// Full service info from `docker compose ps --format json`.
+/// Uses custom decoding to handle missing/null fields across Docker Compose versions.
 public struct ServiceInfo: Codable, Hashable, Identifiable {
     public var id: String { "\(composeFileId?.uuidString ?? "unknown")-\(Name)" }
 
@@ -37,6 +38,19 @@ public struct ServiceInfo: Codable, Hashable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case Service, State, Status, Name, Ports, Publishers
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        Service = try container.decode(String.self, forKey: .Service)
+        State = try container.decodeIfPresent(String.self, forKey: .State) ?? ""
+        Status = try container.decodeIfPresent(String.self, forKey: .Status) ?? ""
+        Name = try container.decodeIfPresent(String.self, forKey: .Name) ?? ""
+        Ports = try container.decodeIfPresent(String.self, forKey: .Ports) ?? ""
+        Publishers = try container.decodeIfPresent([PortPublisher].self, forKey: .Publishers) ?? []
+        composeFileId = nil
+        composeFilePath = nil
+        composeFileDisplayName = nil
     }
 
     public init(

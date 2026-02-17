@@ -165,6 +165,40 @@ final class ServiceInfoTests: XCTestCase {
         XCTAssertEqual(info.Publishers[1].PublishedPort, 443)
     }
 
+    func testDecodingWithMissingOptionalFields() throws {
+        // Docker Compose versions may omit fields like Status, Ports, Publishers
+        let json = """
+        {
+            "Service": "web"
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertEqual(info.Service, "web")
+        XCTAssertEqual(info.State, "")
+        XCTAssertEqual(info.Status, "")
+        XCTAssertEqual(info.Name, "")
+        XCTAssertEqual(info.Ports, "")
+        XCTAssertTrue(info.Publishers.isEmpty)
+    }
+
+    func testDecodingWithPartialFields() throws {
+        let json = """
+        {
+            "Service": "api",
+            "State": "running",
+            "Name": "proj-api-1"
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertEqual(info.Service, "api")
+        XCTAssertEqual(info.State, "running")
+        XCTAssertEqual(info.Name, "proj-api-1")
+        XCTAssertEqual(info.Ports, "")
+        XCTAssertTrue(info.Publishers.isEmpty)
+    }
+
     func testNonCodedPropertiesAreNilAfterDecoding() throws {
         let json = """
         {
@@ -184,6 +218,7 @@ final class ServiceInfoTests: XCTestCase {
     }
 
     func testPortConflictDetection() {
+        // Same address, port, and protocol = conflict
         let s1 = ServiceInfo(
             Service: "web", State: "running", Name: "p1-web-1",
             Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")]
@@ -197,17 +232,40 @@ final class ServiceInfoTests: XCTestCase {
             Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 5432, PublishedPort: 5432, Protocol: "tcp")]
         )
 
-        var portMap: [Int: Int] = [:]
+        struct PortBinding: Hashable { let url: String; let port: Int; let proto: String }
+        var bindingCount: [PortBinding: Int] = [:]
         for service in [s1, s2, s3] {
             for pub in service.Publishers where pub.PublishedPort > 0 {
-                portMap[pub.PublishedPort, default: 0] += 1
+                bindingCount[PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol), default: 0] += 1
             }
         }
-        let conflicts = Set(portMap.filter { $0.value > 1 }.keys)
+        let conflicts = Set(bindingCount.filter { $0.value > 1 }.keys)
 
         XCTAssertEqual(conflicts.count, 1)
-        XCTAssertTrue(conflicts.contains(8080))
-        XCTAssertFalse(conflicts.contains(5432))
+        XCTAssertTrue(conflicts.contains(PortBinding(url: "0.0.0.0", port: 8080, proto: "tcp")))
+        XCTAssertFalse(conflicts.contains(PortBinding(url: "0.0.0.0", port: 5432, proto: "tcp")))
+    }
+
+    func testPortConflictDifferentAddressNoConflict() {
+        // Same port but different bind addresses = no conflict
+        let s1 = ServiceInfo(
+            Service: "web", State: "running", Name: "p1-web-1",
+            Publishers: [PortPublisher(URL: "127.0.0.1", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")]
+        )
+        let s2 = ServiceInfo(
+            Service: "api", State: "running", Name: "p2-api-1",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 3000, PublishedPort: 8080, Protocol: "tcp")]
+        )
+
+        struct PortBinding: Hashable { let url: String; let port: Int; let proto: String }
+        var bindingCount: [PortBinding: Int] = [:]
+        for service in [s1, s2] {
+            for pub in service.Publishers where pub.PublishedPort > 0 {
+                bindingCount[PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol), default: 0] += 1
+            }
+        }
+        let conflicts = bindingCount.filter { $0.value > 1 }
+        XCTAssertTrue(conflicts.isEmpty)
     }
 
     func testInitWithAllParameters() {

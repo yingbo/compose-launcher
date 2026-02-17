@@ -23,18 +23,30 @@ struct ServicesView: View {
         }
     }
 
-    private var conflictedPorts: Set<Int> {
-        var portMap: [Int: Int] = [:]
+    /// A binding key that considers address, port, and protocol to avoid false positives.
+    private struct PortBinding: Hashable {
+        let url: String
+        let port: Int
+        let proto: String
+    }
+
+    private var conflictedBindings: Set<PortBinding> {
+        var bindingCount: [PortBinding: Int] = [:]
         for service in allServices {
             for pub in service.Publishers where pub.PublishedPort > 0 {
-                portMap[pub.PublishedPort, default: 0] += 1
+                let binding = PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
+                bindingCount[binding, default: 0] += 1
             }
         }
-        return Set(portMap.filter { $0.value > 1 }.keys)
+        return Set(bindingCount.filter { $0.value > 1 }.keys)
     }
 
     private var conflictCount: Int {
-        conflictedPorts.count
+        conflictedBindings.count
+    }
+
+    private func isConflicted(_ pub: PortPublisher) -> Bool {
+        conflictedBindings.contains(PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol))
     }
 
     var body: some View {
@@ -126,7 +138,7 @@ struct ServicesView: View {
                         ForEach(filteredServices) { service in
                             ServiceRow(
                                 service: service,
-                                conflictedPorts: conflictedPorts,
+                                isPortConflicted: isConflicted,
                                 onNavigate: { navigateToFile(service) }
                             )
                             Divider().opacity(0.5)
@@ -238,7 +250,7 @@ private struct ServiceHeaderRow: View {
 
 private struct ServiceRow: View {
     let service: ServiceInfo
-    let conflictedPorts: Set<Int>
+    let isPortConflicted: (PortPublisher) -> Bool
     let onNavigate: () -> Void
 
     var body: some View {
@@ -298,14 +310,14 @@ private struct ServiceRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(published) { pub in
                     HStack(spacing: 4) {
-                        if conflictedPorts.contains(pub.PublishedPort) {
+                        if isPortConflicted(pub) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 9))
                                 .foregroundColor(.orange)
                         }
                         Text("\(pub.URL):\(pub.PublishedPort) \u{2192} \(pub.TargetPort)/\(pub.`Protocol`)")
                             .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(conflictedPorts.contains(pub.PublishedPort) ? .orange : .primary)
+                            .foregroundColor(isPortConflicted(pub) ? .orange : .primary)
                     }
                 }
             }

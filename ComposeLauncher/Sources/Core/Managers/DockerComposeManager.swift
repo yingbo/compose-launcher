@@ -196,52 +196,77 @@ public class DockerComposeManager: DockerComposeManaging {
     }
 
     public func getDetailedRunningServices(for file: ComposeFile) async -> [ServiceInfo] {
-        let process = Process()
-        let pipe = Pipe()
+        let dockerPath = self.dockerPath
+        let envArgs = getEnvFileArguments(for: file)
+        let filePath = file.path
+        let fileId = file.id
+        let displayName = file.displayName
 
-        process.executableURL = URL(fileURLWithPath: dockerPath)
-        process.arguments = ["compose", "-f", file.path] + getEnvFileArguments(for: file) + ["ps", "--format", "json"]
-        process.currentDirectoryURL = URL(fileURLWithPath: file.path).deletingLastPathComponent()
-        process.standardOutput = pipe
-        setupEnvironment(for: process)
+        // Run process off the main thread to avoid UI stalls
+        let services: [ServiceInfo] = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                let pipe = Pipe()
 
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                process.executableURL = URL(fileURLWithPath: dockerPath)
+                process.arguments = ["compose", "-f", filePath] + envArgs + ["ps", "--format", "json"]
+                process.currentDirectoryURL = URL(fileURLWithPath: filePath).deletingLastPathComponent()
+                process.standardOutput = pipe
 
-            let output = String(data: data, encoding: .utf8) ?? ""
-            if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
+                // Setup environment inline (avoid accessing MainActor state)
+                var env = ProcessInfo.processInfo.environment
+                let commonPaths = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"]
+                let currentPath = env["PATH"] ?? ""
+                let pathList = currentPath.split(separator: ":").map(String.init)
+                var newPaths = pathList
+                for path in commonPaths where !newPaths.contains(path) {
+                    newPaths.insert(path, at: 0)
+                }
+                env["PATH"] = newPaths.joined(separator: ":")
+                process.environment = env
 
-            var services: [ServiceInfo] = []
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
 
-            // Try parsing as a JSON array first
-            if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
-                services = list
-            } else {
-                // Handle line-delimited JSON (older Docker Compose versions)
-                let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
-                for line in lines {
-                    if let lineData = line.data(using: .utf8),
-                       let info = try? JSONDecoder().decode(ServiceInfo.self, from: lineData) {
-                        services.append(info)
+                    let output = String(data: data, encoding: .utf8) ?? ""
+                    if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        continuation.resume(returning: [])
+                        return
                     }
+
+                    var parsed: [ServiceInfo] = []
+
+                    if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
+                        parsed = list
+                    } else {
+                        let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                        for line in lines {
+                            if let lineData = line.data(using: .utf8),
+                               let info = try? JSONDecoder().decode(ServiceInfo.self, from: lineData) {
+                                parsed.append(info)
+                            }
+                        }
+                    }
+
+                    let result = parsed
+                        .filter { $0.State == "running" }
+                        .map { service in
+                            var s = service
+                            s.composeFileId = fileId
+                            s.composeFilePath = filePath
+                            s.composeFileDisplayName = displayName
+                            return s
+                        }
+                    continuation.resume(returning: result)
+                } catch {
+                    print("Failed to get detailed service statuses: \(error)")
+                    continuation.resume(returning: [])
                 }
             }
-
-            return services
-                .filter { $0.State == "running" }
-                .map { service in
-                    var s = service
-                    s.composeFileId = file.id
-                    s.composeFilePath = file.path
-                    s.composeFileDisplayName = file.displayName
-                    return s
-                }
-        } catch {
-            print("Failed to get detailed service statuses: \(error)")
         }
-        return []
+        return services
     }
 
     private func getEnvFileArguments(for file: ComposeFile) -> [String] {
