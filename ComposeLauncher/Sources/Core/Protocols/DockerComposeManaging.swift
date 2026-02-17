@@ -9,6 +9,7 @@ public protocol DockerComposeManaging: ObservableObject {
     func isRunning(_ file: ComposeFile) -> Bool
     func getServices(for file: ComposeFile) async -> [String]
     func getRunningServices(for file: ComposeFile) async -> [String]
+    func getDetailedRunningServices(for file: ComposeFile) async throws -> [ServiceInfo]
     func clearLogs(for fileId: UUID?)
     func configure(maxLogLines: Int, dockerPath: String)
 }
