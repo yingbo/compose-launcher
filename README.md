@@ -8,6 +8,7 @@ A native macOS application for managing and running Docker Compose files with a 
 - [Architecture](ARCHITECTURE.md) - High-level overview of the app's design
 - [FAQ](FAQ.md) - Common questions and answers
 - [Contributing](CONTRIBUTING.md) - Guide for developers
+- [Release Process](RELEASES.md) - How builds and GitHub releases are produced
 - [License](LICENSE) - Legal information
 
 ## Features
@@ -27,9 +28,15 @@ A native macOS application for managing and running Docker Compose files with a 
 - Docker Desktop installed and running
 - Xcode 15+ (for building from source)
 
-## Building
+## Build From Source
 
-### Using Swift Package Manager
+### App bundle (recommended)
+
+```bash
+./build-app.sh
+```
+
+### Swift Package Manager binary
 
 ```bash
 cd ComposeLauncher
@@ -46,40 +53,10 @@ The built application will be in `.build/release/ComposeLauncher`.
 
 ## Usage
 
-### Adding Compose Files
-
 1. Click the **+** button in the sidebar
 2. Select a `docker-compose.yml` file
-3. The file will appear in your sidebar
-
-### Running Containers
-
-1. Select a compose file from the sidebar
-2. Click the **▶** (play) button to start
-3. View logs in the **Logs** tab
-4. Click the **■** (stop) button to stop containers
-
-### Editing Compose Files
-
-1. Select a compose file
-2. Switch to the **Editor** tab
-3. Make your changes
-4. Press **⌘S** or click **Save**
-
-### Settings
-
-Access settings via:
-- **⌘,** keyboard shortcut
-- Gear icon in the toolbar
-- **Compose Launcher → Settings** menu
-
-Configure:
-- Docker executable path
-- Maximum log lines to retain
-
-## File Locations
-
-- **Settings**: `~/Library/Application Support/ComposeLauncher/settings.yaml`
+3. Click **▶** to run and **■** to stop
+4. Use **Editor** to modify YAML and **Logs** to inspect container output
 
 ## Keyboard Shortcuts
 

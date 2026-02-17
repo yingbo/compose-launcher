@@ -2,41 +2,55 @@ import Foundation
 import Yams
 
 @MainActor
-class SettingsManager: ObservableObject {
-    @Published var settings: AppSettings
-    
+public class SettingsManager: ObservableObject {
+    @Published public var settings: AppSettings
+
     private let settingsURL: URL
-    
-    static let shared = SettingsManager()
-    
-    init() {
+
+    public static let shared = SettingsManager()
+
+    public init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let appFolder = appSupport.appendingPathComponent("ComposeLauncher", isDirectory: true)
-        
+
         // Create app folder if needed
         try? FileManager.default.createDirectory(at: appFolder, withIntermediateDirectories: true)
-        
+
         self.settingsURL = appFolder.appendingPathComponent("settings.yaml")
         self.settings = AppSettings.default
-        
+
         loadSettings()
     }
-    
-    func loadSettings() {
+
+    public init(settingsURL: URL) {
+        try? FileManager.default.createDirectory(
+            at: settingsURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        self.settingsURL = settingsURL
+        self.settings = AppSettings.default
+
+        loadSettings()
+    }
+
+    public func loadSettings() {
         guard FileManager.default.fileExists(atPath: settingsURL.path) else {
             return
         }
-        
+
         do {
             let yamlString = try String(contentsOf: settingsURL, encoding: .utf8)
             let decoder = YAMLDecoder()
             settings = try decoder.decode(AppSettings.self, from: yamlString)
+        } catch is DecodingError {
+            // Corrupt or incompatible YAML should fall back to defaults silently.
+            // This avoids noisy logs during tests and for end users with bad settings files.
         } catch {
             print("Failed to load settings: \(error)")
         }
     }
-    
-    func saveSettings() {
+
+    public func saveSettings() {
         do {
             let encoder = YAMLEncoder()
             let yamlString = try encoder.encode(settings)
@@ -45,35 +59,35 @@ class SettingsManager: ObservableObject {
             print("Failed to save settings: \(error)")
         }
     }
-    
-    func addComposeFile(_ file: ComposeFile) {
+
+    public func addComposeFile(_ file: ComposeFile) {
         settings.composeFiles.append(file)
         saveSettings()
     }
-    
-    func removeComposeFile(_ file: ComposeFile) {
+
+    public func removeComposeFile(_ file: ComposeFile) {
         settings.composeFiles.removeAll { $0.id == file.id }
         saveSettings()
     }
-    
-    func updateComposeFile(_ file: ComposeFile) {
+
+    public func updateComposeFile(_ file: ComposeFile) {
         if let index = settings.composeFiles.firstIndex(where: { $0.id == file.id }) {
             settings.composeFiles[index] = file
             saveSettings()
         }
     }
-    
-    func updateMaxLogLines(_ lines: Int) {
+
+    public func updateMaxLogLines(_ lines: Int) {
         settings.maxLogLines = lines
         saveSettings()
     }
-    
-    func updateDockerPath(_ path: String) {
+
+    public func updateDockerPath(_ path: String) {
         settings.dockerComposePath = path
         saveSettings()
     }
-    
-    func updateSidebarDisplayMode(_ mode: SidebarDisplayMode) {
+
+    public func updateSidebarDisplayMode(_ mode: SidebarDisplayMode) {
         settings.sidebarDisplayMode = mode
         saveSettings()
     }

@@ -42,6 +42,7 @@ struct LogPanelView: View {
                     TextField("Search logs...", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12))
+                        .accessibilityIdentifier("log-search-field")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -70,6 +71,7 @@ struct LogPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Clear logs")
+                .accessibilityIdentifier("log-clear-button")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
