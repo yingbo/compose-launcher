@@ -10,8 +10,17 @@ public struct ContentView: View {
     enum DetailTab: String, CaseIterable {
         case logs = "Logs"
         case editor = "Editor"
+        case services = "Services"
     }
-    
+
+    private func iconForTab(_ tab: DetailTab) -> String {
+        switch tab {
+        case .logs: return "doc.text"
+        case .editor: return "pencil"
+        case .services: return "network"
+        }
+    }
+
     public init() {}
 
     public var body: some View {
@@ -22,43 +31,51 @@ public struct ContentView: View {
                 selectedFile: $selectedFile
             )
         } detail: {
-            if selectedFile != nil {
-                VStack(spacing: 0) {
-                    // Tab bar
-                    HStack(spacing: 0) {
-                        ForEach(DetailTab.allCases, id: \.self) { tab in
-                            TabButton(
-                                title: tab.rawValue,
-                                icon: tab == .logs ? "doc.text" : "pencil",
-                                isSelected: selectedTab == tab
-                            ) {
-                                selectedTab = tab
-                            }
-                            .accessibilityIdentifier("tab-\(tab.rawValue.lowercased())")
+            VStack(spacing: 0) {
+                // Tab bar (always visible)
+                HStack(spacing: 0) {
+                    ForEach(DetailTab.allCases, id: \.self) { tab in
+                        TabButton(
+                            title: tab.rawValue,
+                            icon: iconForTab(tab),
+                            isSelected: selectedTab == tab
+                        ) {
+                            selectedTab = tab
                         }
-                        Spacer()
+                        .accessibilityIdentifier("tab-\(tab.rawValue.lowercased())")
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(Color(nsColor: .windowBackgroundColor))
-                    
-                    Divider()
-                    
-                    // Content
-                    switch selectedTab {
-                    case .logs:
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+                Divider()
+
+                // Content
+                switch selectedTab {
+                case .logs:
+                    if selectedFile != nil {
                         LogPanelView(
                             composeManager: composeManager,
                             selectedFile: selectedFile
                         )
-                    case .editor:
-                        if let file = selectedFile {
-                            EditorView(file: file)
-                        }
+                    } else {
+                        EmptyStateView()
                     }
+                case .editor:
+                    if let file = selectedFile {
+                        EditorView(file: file)
+                    } else {
+                        EmptyStateView()
+                    }
+                case .services:
+                    ServicesView(
+                        composeManager: composeManager,
+                        settingsManager: settingsManager,
+                        selectedFile: $selectedFile
+                    )
                 }
-            } else {
-                EmptyStateView()
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -91,6 +108,9 @@ public struct ContentView: View {
                 maxLogLines: settingsManager.settings.maxLogLines,
                 dockerPath: newValue
             )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showServicesTab)) { _ in
+            selectedTab = .services
         }
     }
 }

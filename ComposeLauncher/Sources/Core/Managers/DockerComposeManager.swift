@@ -149,9 +149,9 @@ public class DockerComposeManager: DockerComposeManaging {
         return []
     }
 
-    public struct ServiceInfo: Codable {
-        public let Service: String
-        public let State: String
+    private struct BasicServiceInfo: Codable {
+        let Service: String
+        let State: String
     }
 
     public func getRunningServices(for file: ComposeFile) async -> [String] {
@@ -174,7 +174,7 @@ public class DockerComposeManager: DockerComposeManaging {
             if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return [] }
 
             // Try parsing as a list first
-            if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
+            if let list = try? JSONDecoder().decode([BasicServiceInfo].self, from: data) {
                 return list.filter { $0.State == "running" }.map { $0.Service }
             }
 
@@ -182,7 +182,7 @@ public class DockerComposeManager: DockerComposeManaging {
             let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
             var runningServices: [String] = []
             for line in lines {
-                if let info = try? JSONDecoder().decode(ServiceInfo.self, from: line.data(using: .utf8)!) {
+                if let info = try? JSONDecoder().decode(BasicServiceInfo.self, from: line.data(using: .utf8)!) {
                     if info.State == "running" {
                         runningServices.append(info.Service)
                     }
@@ -193,6 +193,96 @@ public class DockerComposeManager: DockerComposeManaging {
             print("Failed to get service statuses: \(error)")
         }
         return []
+    }
+
+    public func getDetailedRunningServices(for file: ComposeFile) async throws -> [ServiceInfo] {
+        let dockerPath = self.dockerPath
+        let envArgs = getEnvFileArguments(for: file)
+        let filePath = file.path
+        let fileId = file.id
+        let displayName = file.displayName
+
+        // Run process off the main thread to avoid UI stalls
+        let result: Result<[ServiceInfo], Error> = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                let pipe = Pipe()
+                let errorPipe = Pipe()
+
+                process.executableURL = URL(fileURLWithPath: dockerPath)
+                process.arguments = ["compose", "-f", filePath] + envArgs + ["ps", "--format", "json"]
+                process.currentDirectoryURL = URL(fileURLWithPath: filePath).deletingLastPathComponent()
+                process.standardOutput = pipe
+                process.standardError = errorPipe
+
+                // Setup environment inline (avoid accessing MainActor state)
+                var env = ProcessInfo.processInfo.environment
+                let commonPaths = ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"]
+                let currentPath = env["PATH"] ?? ""
+                let pathList = currentPath.split(separator: ":").map(String.init)
+                var newPaths = pathList
+                for path in commonPaths where !newPaths.contains(path) {
+                    newPaths.insert(path, at: 0)
+                }
+                env["PATH"] = newPaths.joined(separator: ":")
+                process.environment = env
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    let status = process.terminationStatus
+                    if status != 0 {
+                        let stderrData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        let message = stderrText.isEmpty
+                            ? "docker compose ps exited with status \(status)"
+                            : stderrText
+                        continuation.resume(returning: .failure(
+                            NSError(domain: "DockerComposeManager", code: Int(status),
+                                    userInfo: [NSLocalizedDescriptionKey: message])
+                        ))
+                        return
+                    }
+
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
+                    let output = String(data: data, encoding: .utf8) ?? ""
+                    if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        continuation.resume(returning: .success([]))
+                        return
+                    }
+
+                    var parsed: [ServiceInfo] = []
+
+                    if let list = try? JSONDecoder().decode([ServiceInfo].self, from: data) {
+                        parsed = list
+                    } else {
+                        let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+                        for line in lines {
+                            if let lineData = line.data(using: .utf8),
+                               let info = try? JSONDecoder().decode(ServiceInfo.self, from: lineData) {
+                                parsed.append(info)
+                            }
+                        }
+                    }
+
+                    let services = parsed
+                        .filter { $0.State == "running" }
+                        .map { service in
+                            var s = service
+                            s.composeFileId = fileId
+                            s.composeFilePath = filePath
+                            s.composeFileDisplayName = displayName
+                            return s
+                        }
+                    continuation.resume(returning: .success(services))
+                } catch {
+                    continuation.resume(returning: .failure(error))
+                }
+            }
+        }
+        return try result.get()
     }
 
     private func getEnvFileArguments(for file: ComposeFile) -> [String] {
