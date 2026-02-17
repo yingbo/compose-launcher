@@ -25,8 +25,8 @@ flowchart TD
 
 1. **(Optional) Create a git tag** for a stable version:
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.1.0
+   git push origin v1.1.0
    ```
 
 2. **Push to the release branch**:
@@ -48,7 +48,7 @@ Tag behavior in the workflow:
 | Setting | Value |
 |---------|-------|
 | Trigger Branch | `release` |
-| Version Source | Latest git tag (default `v1.0.0` if none) |
+| Version Source | Latest git tag (default `v1.1.0` if none) |
 | Architecture | Universal Binary (ARM64 + x86_64) |
 | Runner | `macos-14` (M1) |
 | Swift Version | 5.9 |
