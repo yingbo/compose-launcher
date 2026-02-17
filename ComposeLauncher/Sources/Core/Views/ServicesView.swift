@@ -10,6 +10,8 @@ struct ServicesView: View {
     @State private var isLoading: Bool = false
     @State private var refreshTimer: Timer?
     @State private var lastRefresh: Date = Date()
+    @State private var refreshTask: Task<Void, Never>?
+    @State private var cachedConflicts: Set<PortBinding> = []
 
     private var filteredServices: [ServiceInfo] {
         guard !searchText.isEmpty else { return allServices }
@@ -24,29 +26,29 @@ struct ServicesView: View {
     }
 
     /// A binding key that considers address, port, and protocol to avoid false positives.
-    private struct PortBinding: Hashable {
+    struct PortBinding: Hashable {
         let url: String
         let port: Int
         let proto: String
     }
 
-    private var conflictedBindings: Set<PortBinding> {
+    private var conflictCount: Int {
+        cachedConflicts.count
+    }
+
+    private func isConflicted(_ pub: PortPublisher) -> Bool {
+        cachedConflicts.contains(PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol))
+    }
+
+    private static func computeConflicts(from services: [ServiceInfo]) -> Set<PortBinding> {
         var bindingCount: [PortBinding: Int] = [:]
-        for service in allServices {
+        for service in services {
             for pub in service.Publishers where pub.PublishedPort > 0 {
                 let binding = PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
                 bindingCount[binding, default: 0] += 1
             }
         }
         return Set(bindingCount.filter { $0.value > 1 }.keys)
-    }
-
-    private var conflictCount: Int {
-        conflictedBindings.count
-    }
-
-    private func isConflicted(_ pub: PortPublisher) -> Bool {
-        conflictedBindings.contains(PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol))
     }
 
     var body: some View {
@@ -74,7 +76,7 @@ struct ServicesView: View {
                 .cornerRadius(6)
                 .frame(width: 220)
 
-                Button(action: { Task { await refreshServices() } }) {
+                Button(action: { scheduleRefresh() }) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
@@ -177,26 +179,37 @@ struct ServicesView: View {
             .background(Color(nsColor: .controlBackgroundColor))
         }
         .onAppear {
-            Task { await refreshServices() }
+            scheduleRefresh()
             startAutoRefresh()
         }
         .onDisappear {
+            refreshTask?.cancel()
             stopAutoRefresh()
         }
     }
 
     // MARK: - Data
 
-    private func refreshServices() async {
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task {
+            await performRefresh()
+        }
+    }
+
+    private func performRefresh() async {
         isLoading = true
         var collected: [ServiceInfo] = []
 
         for file in settingsManager.settings.composeFiles {
+            if Task.isCancelled { return }
             let services = await composeManager.getDetailedRunningServices(for: file)
             collected.append(contentsOf: services)
         }
 
+        guard !Task.isCancelled else { return }
         allServices = collected
+        cachedConflicts = Self.computeConflicts(from: collected)
         lastRefresh = Date()
         isLoading = false
     }
@@ -204,7 +217,7 @@ struct ServicesView: View {
     private func startAutoRefresh() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
             Task { @MainActor in
-                await refreshServices()
+                scheduleRefresh()
             }
         }
     }
@@ -302,7 +315,12 @@ private struct ServiceRow: View {
     @ViewBuilder
     private var portsView: some View {
         let published = service.Publishers.filter { $0.PublishedPort > 0 }
-        if published.isEmpty {
+        if published.isEmpty && !service.Ports.isEmpty {
+            // Fallback: show raw Ports text when Publishers array is absent/empty
+            Text(service.Ports)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.primary)
+        } else if published.isEmpty {
             Text("No published ports")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)

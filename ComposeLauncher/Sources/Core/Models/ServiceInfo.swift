@@ -22,7 +22,12 @@ public struct PortPublisher: Codable, Hashable, Identifiable {
 /// Full service info from `docker compose ps --format json`.
 /// Uses custom decoding to handle missing/null fields across Docker Compose versions.
 public struct ServiceInfo: Codable, Hashable, Identifiable {
-    public var id: String { "\(composeFileId?.uuidString ?? "unknown")-\(Name)" }
+    public var id: String {
+        let owner = composeFileId?.uuidString ?? "unknown"
+        let container = !Name.isEmpty ? Name : Service
+        let portSig = Publishers.map { "\($0.PublishedPort)" }.joined(separator: ",")
+        return "\(owner)-\(container)-\(portSig)"
+    }
 
     public let Service: String
     public let State: String

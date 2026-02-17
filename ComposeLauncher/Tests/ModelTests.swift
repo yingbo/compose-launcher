@@ -268,6 +268,39 @@ final class ServiceInfoTests: XCTestCase {
         XCTAssertTrue(conflicts.isEmpty)
     }
 
+    func testDecodingWithPortsButNoPublishers() throws {
+        // Some Docker Compose versions provide Ports text but omit Publishers
+        let json = """
+        {
+            "Service": "web",
+            "State": "running",
+            "Name": "proj-web-1",
+            "Ports": "0.0.0.0:8080->80/tcp"
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(ServiceInfo.self, from: json)
+        XCTAssertEqual(info.Service, "web")
+        XCTAssertEqual(info.Ports, "0.0.0.0:8080->80/tcp")
+        XCTAssertTrue(info.Publishers.isEmpty, "Publishers should be empty when omitted from JSON")
+    }
+
+    func testIdUniquenessWithEmptyNames() {
+        // Two services in the same compose file with empty Name should still get distinct IDs
+        let fileId = UUID()
+        let s1 = ServiceInfo(
+            Service: "web", State: "running", Name: "",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")],
+            composeFileId: fileId
+        )
+        let s2 = ServiceInfo(
+            Service: "web", State: "running", Name: "",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 3000, PublishedPort: 3000, Protocol: "tcp")],
+            composeFileId: fileId
+        )
+        XCTAssertNotEqual(s1.id, s2.id, "Services with same name but different ports should have distinct IDs")
+    }
+
     func testInitWithAllParameters() {
         let fileId = UUID()
         let info = ServiceInfo(
