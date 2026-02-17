@@ -218,7 +218,7 @@ final class ServiceInfoTests: XCTestCase {
     }
 
     func testPortConflictDetection() {
-        // Same address, port, and protocol = conflict
+        // Same address, port, and protocol across different services = conflict
         let s1 = ServiceInfo(
             Service: "web", State: "running", Name: "p1-web-1",
             Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")]
@@ -232,18 +232,10 @@ final class ServiceInfoTests: XCTestCase {
             Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 5432, PublishedPort: 5432, Protocol: "tcp")]
         )
 
-        struct PortBinding: Hashable { let url: String; let port: Int; let proto: String }
-        var bindingCount: [PortBinding: Int] = [:]
-        for service in [s1, s2, s3] {
-            for pub in service.Publishers where pub.PublishedPort > 0 {
-                bindingCount[PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol), default: 0] += 1
-            }
-        }
-        let conflicts = Set(bindingCount.filter { $0.value > 1 }.keys)
-
+        let conflicts = ServicesView.computeConflicts(from: [s1, s2, s3])
         XCTAssertEqual(conflicts.count, 1)
-        XCTAssertTrue(conflicts.contains(PortBinding(url: "0.0.0.0", port: 8080, proto: "tcp")))
-        XCTAssertFalse(conflicts.contains(PortBinding(url: "0.0.0.0", port: 5432, proto: "tcp")))
+        XCTAssertTrue(conflicts.contains(ServicesView.PortBinding(url: "0.0.0.0", port: 8080, proto: "tcp")))
+        XCTAssertFalse(conflicts.contains(ServicesView.PortBinding(url: "0.0.0.0", port: 5432, proto: "tcp")))
     }
 
     func testPortConflictDifferentAddressNoConflict() {
@@ -257,14 +249,7 @@ final class ServiceInfoTests: XCTestCase {
             Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 3000, PublishedPort: 8080, Protocol: "tcp")]
         )
 
-        struct PortBinding: Hashable { let url: String; let port: Int; let proto: String }
-        var bindingCount: [PortBinding: Int] = [:]
-        for service in [s1, s2] {
-            for pub in service.Publishers where pub.PublishedPort > 0 {
-                bindingCount[PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol), default: 0] += 1
-            }
-        }
-        let conflicts = bindingCount.filter { $0.value > 1 }
+        let conflicts = ServicesView.computeConflicts(from: [s1, s2])
         XCTAssertTrue(conflicts.isEmpty)
     }
 
@@ -323,21 +308,111 @@ final class ServiceInfoTests: XCTestCase {
             Service: "api", State: "running", Name: "p2-api-1",
             Ports: "0.0.0.0:8080->3000/tcp"
         )
-        // Use the same logic as ServicesView.computeConflicts
-        var bindingCount: [ServicesView.PortBinding: Int] = [:]
-        for service in [s1, s2] {
-            if !service.Publishers.isEmpty {
-                for pub in service.Publishers where pub.PublishedPort > 0 {
-                    let binding = ServicesView.PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
-                    bindingCount[binding, default: 0] += 1
-                }
-            } else if !service.Ports.isEmpty {
-                for binding in ServicesView.parsePortBindings(from: service.Ports) {
-                    bindingCount[binding, default: 0] += 1
-                }
-            }
-        }
-        let conflicts = Set(bindingCount.filter { $0.value > 1 }.keys)
+        let conflicts = ServicesView.computeConflicts(from: [s1, s2])
+        XCTAssertEqual(conflicts.count, 1)
+        XCTAssertTrue(conflicts.contains(ServicesView.PortBinding(url: "0.0.0.0", port: 8080, proto: "tcp")))
+    }
+
+    // MARK: - Deduplication (issue #21: duplicate services from shared Docker project)
+
+    func testDeduplicateServicesRemovesSameContainerFromMultipleFiles() {
+        // Scenario from the bug: two compose files in the same directory both report
+        // the same running container (e.g. "sample-compose-mongodb-1").
+        let fileId1 = UUID()
+        let fileId2 = UUID()
+        let s1 = ServiceInfo(
+            Service: "mongodb", State: "running", Name: "sample-compose-mongodb-1",
+            Publishers: [
+                PortPublisher(URL: "0.0.0.0", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "::", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp")
+            ],
+            composeFileId: fileId1, composeFileDisplayName: "sample-compose/langfuse"
+        )
+        let s2 = ServiceInfo(
+            Service: "mongodb", State: "running", Name: "sample-compose-mongodb-1",
+            Publishers: [
+                PortPublisher(URL: "0.0.0.0", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "::", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp")
+            ],
+            composeFileId: fileId2, composeFileDisplayName: "sample-compose/mongo"
+        )
+
+        let unique = ServicesView.deduplicateServices([s1, s2])
+        XCTAssertEqual(unique.count, 1, "Same container should appear only once")
+        XCTAssertEqual(unique[0].composeFileId, fileId1, "First occurrence should be kept")
+    }
+
+    func testDeduplicateServicesKeepsDifferentContainers() {
+        let s1 = ServiceInfo(Service: "web", State: "running", Name: "proj-web-1")
+        let s2 = ServiceInfo(Service: "db", State: "running", Name: "proj-db-1")
+        let unique = ServicesView.deduplicateServices([s1, s2])
+        XCTAssertEqual(unique.count, 2)
+    }
+
+    func testDeduplicateServicesKeepsServicesWithEmptyName() {
+        // Services with empty Name (old Docker versions) should not be deduplicated
+        let s1 = ServiceInfo(Service: "web", State: "running", Name: "")
+        let s2 = ServiceInfo(Service: "api", State: "running", Name: "")
+        let unique = ServicesView.deduplicateServices([s1, s2])
+        XCTAssertEqual(unique.count, 2)
+    }
+
+    func testNoFalseConflictFromDuplicateContainer() {
+        // The exact bug scenario: same container returned twice (from two compose files)
+        // should NOT produce a port conflict after deduplication.
+        let s1 = ServiceInfo(
+            Service: "mongodb", State: "running", Name: "sample-compose-mongodb-1",
+            Publishers: [
+                PortPublisher(URL: "0.0.0.0", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "::", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp")
+            ],
+            composeFileId: UUID()
+        )
+        let s2 = ServiceInfo(
+            Service: "mongodb", State: "running", Name: "sample-compose-mongodb-1",
+            Publishers: [
+                PortPublisher(URL: "0.0.0.0", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "::", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp")
+            ],
+            composeFileId: UUID()
+        )
+
+        // Without deduplication, the old code would report 2 conflicts
+        let unique = ServicesView.deduplicateServices([s1, s2])
+        let conflicts = ServicesView.computeConflicts(from: unique)
+        XCTAssertTrue(conflicts.isEmpty, "Single container should have no port conflicts")
+    }
+
+    func testNoFalseConflictFromDuplicatePublishersWithinService() {
+        // Some Docker Compose versions emit duplicate entries in Publishers array
+        let service = ServiceInfo(
+            Service: "mongodb", State: "running", Name: "proj-mongodb-1",
+            Publishers: [
+                PortPublisher(URL: "0.0.0.0", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "0.0.0.0", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "::", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp"),
+                PortPublisher(URL: "::", TargetPort: 27017, PublishedPort: 27017, Protocol: "tcp")
+            ]
+        )
+
+        let conflicts = ServicesView.computeConflicts(from: [service])
+        XCTAssertTrue(conflicts.isEmpty,
+            "Duplicate publishers within a single service should not trigger false conflicts")
+    }
+
+    func testRealConflictStillDetectedAfterDeduplication() {
+        // Two genuinely different services binding the same port = real conflict
+        let s1 = ServiceInfo(
+            Service: "web", State: "running", Name: "proj-web-1",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 80, PublishedPort: 8080, Protocol: "tcp")]
+        )
+        let s2 = ServiceInfo(
+            Service: "api", State: "running", Name: "proj-api-1",
+            Publishers: [PortPublisher(URL: "0.0.0.0", TargetPort: 3000, PublishedPort: 8080, Protocol: "tcp")]
+        )
+
+        let unique = ServicesView.deduplicateServices([s1, s2])
+        let conflicts = ServicesView.computeConflicts(from: unique)
         XCTAssertEqual(conflicts.count, 1)
         XCTAssertTrue(conflicts.contains(ServicesView.PortBinding(url: "0.0.0.0", port: 8080, proto: "tcp")))
     }

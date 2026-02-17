@@ -63,21 +63,36 @@ struct ServicesView: View {
         return bindings
     }
 
-    private static func computeConflicts(from services: [ServiceInfo]) -> Set<PortBinding> {
-        var bindingCount: [PortBinding: Int] = [:]
+    /// Deduplicate services that represent the same running container.
+    /// When multiple compose files share a Docker project, `docker compose ps`
+    /// returns the same container for each file, producing duplicate rows.
+    static func deduplicateServices(_ services: [ServiceInfo]) -> [ServiceInfo] {
+        var seen = Set<String>()
+        return services.filter { service in
+            guard !service.Name.isEmpty else { return true }
+            return seen.insert(service.Name).inserted
+        }
+    }
+
+    static func computeConflicts(from services: [ServiceInfo]) -> Set<PortBinding> {
+        // Track which unique services own each binding.
+        // Using a Set<String> per binding ensures duplicate publishers within
+        // a single service or duplicate service entries don't cause false conflicts.
+        var bindingOwners: [PortBinding: Set<String>] = [:]
         for service in services {
+            let serviceKey = !service.Name.isEmpty ? service.Name : service.Service
             if !service.Publishers.isEmpty {
                 for pub in service.Publishers where pub.PublishedPort > 0 {
                     let binding = PortBinding(url: pub.URL, port: pub.PublishedPort, proto: pub.Protocol)
-                    bindingCount[binding, default: 0] += 1
+                    bindingOwners[binding, default: []].insert(serviceKey)
                 }
             } else if !service.Ports.isEmpty {
                 for binding in parsePortBindings(from: service.Ports) {
-                    bindingCount[binding, default: 0] += 1
+                    bindingOwners[binding, default: []].insert(serviceKey)
                 }
             }
         }
-        return Set(bindingCount.filter { $0.value > 1 }.keys)
+        return Set(bindingOwners.filter { $0.value.count > 1 }.keys)
     }
 
     var body: some View {
@@ -246,7 +261,7 @@ struct ServicesView: View {
     // MARK: - Data
 
     private func scheduleRefresh() {
-        guard !isLoading else { return }
+        refreshTask?.cancel()
         refreshTask = Task {
             await performRefresh()
         }
@@ -254,7 +269,6 @@ struct ServicesView: View {
 
     private func performRefresh() async {
         isLoading = true
-        defer { isLoading = false }
         var collected: [ServiceInfo] = []
         var errors: [String] = []
 
@@ -269,10 +283,12 @@ struct ServicesView: View {
         }
 
         guard !Task.isCancelled else { return }
-        allServices = collected
-        cachedConflicts = Self.computeConflicts(from: collected)
+        let unique = Self.deduplicateServices(collected)
+        allServices = unique
+        cachedConflicts = Self.computeConflicts(from: unique)
         refreshError = errors.isEmpty ? nil : errors.joined(separator: "; ")
         lastRefresh = Date()
+        isLoading = false
     }
 
     private func startAutoRefresh() {
