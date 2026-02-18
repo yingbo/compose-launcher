@@ -4,8 +4,7 @@ A native macOS application for managing and running Docker Compose files with a 
 
 ## Documentation
 
-- [Design (Stitch)](https://stitch.withgoogle.com/projects/12642404483796731361) - UI/UX design project
-- [Architecture](ARCHITECTURE.md) - High-level overview of the app's design
+- [Architecture](ARCHITECTURE.md) - High-level overview of the application architecture
 - [FAQ](FAQ.md) - Common questions and answers
 - [Contributing](CONTRIBUTING.md) - Guide for developers
 - [Release Process](RELEASES.md) - How builds and GitHub releases are produced
