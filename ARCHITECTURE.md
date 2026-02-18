@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Compose Launcher is a native macOS application built using **SwiftUI** and the **Swift Package Manager**. This document outlines the high-level architecture and design patterns used in the project. The UI/UX design is maintained in [Stitch](https://stitch.withgoogle.com/projects/12642404483796731361).
+Compose Launcher is a native macOS application built using **SwiftUI** and the **Swift Package Manager**. This document outlines the high-level architecture and design patterns used in the project.
 
 ## Package Layout
 
