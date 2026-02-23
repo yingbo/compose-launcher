@@ -25,6 +25,11 @@ struct SidebarView: View {
         let children: [SidebarItem]?
     }
     
+    private var isSelectedFileRunning: Bool {
+        guard let file = selectedFile else { return false }
+        return composeManager.isRunning(file)
+    }
+
     private var treeItems: [SidebarItem] {
         var folders: [String: [ComposeFile]] = [:]
         
@@ -86,7 +91,80 @@ struct SidebarView: View {
             .padding(.vertical, 12)
             
             Divider()
-            
+
+            // Global Action Toolbar
+            HStack(spacing: 4) {
+                Button(action: {
+                    if let file = selectedFile { startCompose(file) }
+                }) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(selectedFile != nil && !isSelectedFileRunning ? .green : .green.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedFile == nil || isSelectedFileRunning)
+                .help("Start")
+
+                Button(action: {
+                    if let file = selectedFile { stopCompose(file) }
+                }) {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(selectedFile != nil && isSelectedFileRunning ? .red : .red.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedFile == nil || !isSelectedFileRunning)
+                .help("Stop")
+
+                Divider()
+                    .frame(height: 18)
+                    .padding(.horizontal, 4)
+
+                Button(action: {
+                    if let file = selectedFile {
+                        fileToRename = file
+                        renameText = file.displayName
+                        showingRenameAlert = true
+                    }
+                }) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 14))
+                        .foregroundColor(selectedFile != nil ? .secondary : .secondary.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedFile == nil)
+                .help("Rename")
+
+                Button(action: {
+                    if let file = selectedFile {
+                        fileToDelete = file
+                        showingDeleteConfirmation = true
+                    }
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14))
+                        .foregroundColor(selectedFile != nil ? .secondary : .secondary.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedFile == nil)
+                .help("Remove")
+
+                Spacer()
+
+                if let file = selectedFile {
+                    Text(file.displayName)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
             // File List
             if settingsManager.settings.sidebarDisplayMode == .tree {
                 List(treeItems, children: \.children) { item in
@@ -96,8 +174,6 @@ struct SidebarView: View {
                         hoveredId: $hoveredFileId,
                         isRunning: item.file.map { composeManager.isRunning($0) } ?? false,
                         isServiceRunning: item.isService && item.file.map { runningServices[$0.id]?.contains(item.name) ?? false } ?? false,
-                        onStart: { if let file = item.file { startCompose(file) } },
-                        onStop: { if let file = item.file { stopCompose(file) } },
                         onRename: {
                             if let file = item.file {
                                 fileToRename = file
@@ -125,8 +201,6 @@ struct SidebarView: View {
                                 isRunning: composeManager.isRunning(file),
                                 isHovered: hoveredFileId == file.id,
                                 onSelect: { selectedFile = file },
-                                onStart: { startCompose(file) },
-                                onStop: { stopCompose(file) },
                                 onRename: {
                                     fileToRename = file
                                     renameText = file.displayName
@@ -286,11 +360,9 @@ struct SidebarRow: View {
     @Binding var hoveredId: UUID?
     let isRunning: Bool
     let isServiceRunning: Bool
-    let onStart: () -> Void
-    let onStop: () -> Void
     let onRename: () -> Void
     let onRemove: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 8) {
             if item.file != nil || item.isService {
@@ -336,24 +408,6 @@ struct SidebarRow: View {
             }
 
             Spacer()
-            
-            if !item.isService && item.file != nil {
-                if isRunning {
-                    Button(action: onStop) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.red)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Button(action: onStart) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.green)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
         .contentShape(Rectangle())
         .onTapGesture {
@@ -381,11 +435,9 @@ struct ComposeFileRow: View {
     let isRunning: Bool
     let isHovered: Bool
     let onSelect: () -> Void
-    let onStart: () -> Void
-    let onStop: () -> Void
     let onRename: () -> Void
     let onRemove: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 10) {
             // Status indicator
@@ -393,14 +445,14 @@ struct ComposeFileRow: View {
                 .fill(isRunning ? Color.green : Color.gray.opacity(0.4))
                 .frame(width: 8, height: 8)
                 .shadow(color: isRunning ? .green.opacity(0.5) : .clear, radius: 3)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(file.displayName)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.primary)
                         .lineLimit(1)
-                    
+
                     if file.envFilePath != nil {
                         Text(".env")
                             .font(.system(size: 8, weight: .bold))
@@ -411,37 +463,15 @@ struct ComposeFileRow: View {
                             .cornerRadius(3)
                     }
                 }
-                
+
                 Text(file.path)
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            
+
             Spacer()
-            
-            if isHovered || isSelected {
-                HStack(spacing: 6) {
-                    if isRunning {
-                        Button(action: onStop) {
-                            Image(systemName: "stop.fill")
-                                .font(.system(size: 11))
-                                .foregroundColor(.red)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Stop")
-                    } else {
-                        Button(action: onStart) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 11))
-                                .foregroundColor(.green)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Start")
-                    }
-                }
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
