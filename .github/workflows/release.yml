@@ -30,13 +30,24 @@ jobs:
         with:
           swift-version: "5.9"
       
-      - name: Get version from tag
+      - name: Get version
         id: version
         run: |
-          # Get the latest tag or use default
-          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-          # Remove 'v' prefix if present
-          VERSION=${VERSION#v}
+          # Try to get version from build-app.sh (user's source of truth)
+          if [ -f "build-app.sh" ]; then
+            VERSION=$(grep -A 1 "CFBundleShortVersionString" build-app.sh | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/' || echo "")
+          fi
+          
+          # If not found in script, fallback to latest tag or default
+          if [ -z "$VERSION" ]; then
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.1.0")
+            # Remove 'v' prefix if present
+            VERSION=${VERSION#v}
+          fi
+          
+          # Clean up any suffix (like -run_number) to get the base version
+          VERSION=${VERSION%%-*}
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Compute release tag
