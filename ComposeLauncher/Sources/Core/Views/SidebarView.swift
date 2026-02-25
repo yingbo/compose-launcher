@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct SidebarView: View {
     @ObservedObject var settingsManager: SettingsManager
     @ObservedObject var composeManager: DockerComposeManager
-    @Binding var selectedFile: ComposeFile?
+    @Binding var selectedFiles: Set<UUID>
     @State private var showingFilePicker = false
     @State private var hoveredFileId: UUID?
     @State private var showingDeleteConfirmation = false
@@ -15,7 +15,7 @@ struct SidebarView: View {
     @State private var showingRenameAlert = false
     @State private var fileToRename: ComposeFile?
     @State private var renameText: String = ""
-    
+
     struct SidebarItem: Identifiable {
         let id: String
         let name: String
@@ -24,20 +24,30 @@ struct SidebarView: View {
         let isService: Bool
         let children: [SidebarItem]?
     }
-    
-    private var isSelectedFileRunning: Bool {
-        guard let file = selectedFile else { return false }
-        return composeManager.isRunning(file)
+
+    /// All currently selected ComposeFile objects
+    private var selectedComposeFiles: [ComposeFile] {
+        settingsManager.settings.composeFiles.filter { selectedFiles.contains($0.id) }
+    }
+
+    /// Whether any selected file can be started (not currently running)
+    private var canStartSelected: Bool {
+        !selectedFiles.isEmpty && selectedComposeFiles.contains { !composeManager.isRunning($0) }
+    }
+
+    /// Whether any selected file can be stopped (currently running)
+    private var canStopSelected: Bool {
+        !selectedFiles.isEmpty && selectedComposeFiles.contains { composeManager.isRunning($0) }
     }
 
     private var treeItems: [SidebarItem] {
         var folders: [String: [ComposeFile]] = [:]
-        
+
         for file in settingsManager.settings.composeFiles {
             let parentPath = URL(fileURLWithPath: file.path).deletingLastPathComponent().path
             folders[parentPath, default: []].append(file)
         }
-        
+
         return folders.map { (path, files) in
             let folderName = URL(fileURLWithPath: path).lastPathComponent
             return SidebarItem(
@@ -69,7 +79,7 @@ struct SidebarView: View {
             )
         }.sorted { $0.name < $1.name }
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -89,74 +99,78 @@ struct SidebarView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            
+
             Divider()
 
             // Global Action Toolbar
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Button(action: {
-                    if let file = selectedFile { startCompose(file) }
+                    startSelectedFiles()
                 }) {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(selectedFile != nil && !isSelectedFileRunning ? .green : .green.opacity(0.3))
+                        .font(.system(size: 20))
+                        .foregroundColor(canStartSelected ? .green : .green.opacity(0.3))
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedFile == nil || isSelectedFileRunning)
+                .disabled(!canStartSelected)
                 .help("Start")
 
                 Button(action: {
-                    if let file = selectedFile { stopCompose(file) }
+                    stopSelectedFiles()
                 }) {
                     Image(systemName: "stop.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(selectedFile != nil && isSelectedFileRunning ? .red : .red.opacity(0.3))
+                        .font(.system(size: 20))
+                        .foregroundColor(canStopSelected ? .red : .red.opacity(0.3))
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedFile == nil || !isSelectedFileRunning)
+                .disabled(!canStopSelected)
                 .help("Stop")
 
                 Divider()
-                    .frame(height: 18)
+                    .frame(height: 22)
                     .padding(.horizontal, 4)
 
                 Button(action: {
-                    if let file = selectedFile {
+                    if let file = selectedComposeFiles.first {
                         fileToRename = file
                         renameText = file.displayName
                         showingRenameAlert = true
                     }
                 }) {
                     Image(systemName: "pencil")
-                        .font(.system(size: 14))
-                        .foregroundColor(selectedFile != nil ? .secondary : .secondary.opacity(0.3))
+                        .font(.system(size: 18))
+                        .foregroundColor(!selectedFiles.isEmpty ? .secondary : .secondary.opacity(0.3))
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedFile == nil)
+                .disabled(selectedFiles.isEmpty)
                 .help("Rename")
 
                 Button(action: {
-                    if let file = selectedFile {
+                    if let file = selectedComposeFiles.first {
                         fileToDelete = file
                         showingDeleteConfirmation = true
                     }
                 }) {
                     Image(systemName: "trash")
-                        .font(.system(size: 14))
-                        .foregroundColor(selectedFile != nil ? .secondary : .secondary.opacity(0.3))
+                        .font(.system(size: 18))
+                        .foregroundColor(!selectedFiles.isEmpty ? .secondary : .secondary.opacity(0.3))
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedFile == nil)
+                .disabled(selectedFiles.isEmpty)
                 .help("Remove")
 
                 Spacer()
 
-                if let file = selectedFile {
+                if selectedFiles.count == 1, let file = selectedComposeFiles.first {
                     Text(file.displayName)
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                } else if selectedFiles.count > 1 {
+                    Text("\(selectedFiles.count) selected")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(.horizontal, 12)
@@ -170,7 +184,7 @@ struct SidebarView: View {
                 List(treeItems, children: \.children) { item in
                     SidebarRow(
                         item: item,
-                        selectedFile: $selectedFile,
+                        selectedFiles: $selectedFiles,
                         hoveredId: $hoveredFileId,
                         isRunning: item.file.map { composeManager.isRunning($0) } ?? false,
                         isServiceRunning: item.isService && item.file.map { runningServices[$0.id]?.contains(item.name) ?? false } ?? false,
@@ -197,10 +211,12 @@ struct SidebarView: View {
                         ForEach(settingsManager.settings.composeFiles) { file in
                             ComposeFileRow(
                                 file: file,
-                                isSelected: selectedFile?.id == file.id,
+                                isSelected: selectedFiles.contains(file.id),
                                 isRunning: composeManager.isRunning(file),
                                 isHovered: hoveredFileId == file.id,
-                                onSelect: { selectedFile = file },
+                                onSelect: { event in
+                                    handleSelection(file: file, cmdPressed: event)
+                                },
                                 onRename: {
                                     fileToRename = file
                                     renameText = file.displayName
@@ -261,23 +277,33 @@ struct SidebarView: View {
             showingFilePicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .startCompose)) { _ in
-            if let file = selectedFile {
-                startCompose(file)
-            }
+            startSelectedFiles()
         }
         .onReceive(NotificationCenter.default.publisher(for: .stopCompose)) { _ in
-            if let file = selectedFile {
-                stopCompose(file)
-            }
+            stopSelectedFiles()
         }
         .onReceive(NotificationCenter.default.publisher(for: .removeCompose)) { _ in
-            if let file = selectedFile {
+            if let file = selectedComposeFiles.first {
                 fileToDelete = file
                 showingDeleteConfirmation = true
             }
         }
     }
-    
+
+    private func handleSelection(file: ComposeFile, cmdPressed: Bool) {
+        if cmdPressed {
+            // Toggle selection
+            if selectedFiles.contains(file.id) {
+                selectedFiles.remove(file.id)
+            } else {
+                selectedFiles.insert(file.id)
+            }
+        } else {
+            // Single select
+            selectedFiles = [file.id]
+        }
+    }
+
     private func handleFileSelection(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
@@ -285,50 +311,58 @@ struct SidebarView: View {
                 // Start accessing security-scoped resource
                 guard url.startAccessingSecurityScopedResource() else { continue }
                 defer { url.stopAccessingSecurityScopedResource() }
-                
+
                 // Check if file already exists
                 let existingPaths = settingsManager.settings.composeFiles.map { $0.path }
                 guard !existingPaths.contains(url.path) else { continue }
-                
+
                 let file = ComposeFile(
                     name: "",
                     path: url.path
                 )
                 settingsManager.addComposeFile(file)
-                selectedFile = file
+                selectedFiles = [file.id]
             }
-            
+
         case .failure(let error):
             print("File selection error: \(error)")
         }
     }
-    
+
+    private func startSelectedFiles() {
+        for file in selectedComposeFiles where !composeManager.isRunning(file) {
+            startCompose(file)
+        }
+    }
+
+    private func stopSelectedFiles() {
+        for file in selectedComposeFiles where composeManager.isRunning(file) {
+            stopCompose(file)
+        }
+    }
+
     private func startCompose(_ file: ComposeFile) {
         Task {
             try? await composeManager.startCompose(for: file)
         }
     }
-    
+
     private func stopCompose(_ file: ComposeFile) {
         Task {
             await composeManager.stopCompose(for: file)
         }
     }
-    
+
     private func removeFile(_ file: ComposeFile) {
         if composeManager.isRunning(file) {
             Task {
                 await composeManager.stopCompose(for: file)
                 settingsManager.removeComposeFile(file)
-                if selectedFile?.id == file.id {
-                    selectedFile = nil
-                }
+                selectedFiles.remove(file.id)
             }
         } else {
             settingsManager.removeComposeFile(file)
-            if selectedFile?.id == file.id {
-                selectedFile = nil
-            }
+            selectedFiles.remove(file.id)
         }
     }
 
@@ -336,17 +370,14 @@ struct SidebarView: View {
         var updated = file
         updated.customName = newName
         settingsManager.updateComposeFile(updated)
-        if selectedFile?.id == file.id {
-            selectedFile = updated
-        }
     }
-    
+
     private func refreshAllServices() {
         for file in settingsManager.settings.composeFiles {
             Task {
                 let services = await composeManager.getServices(for: file)
                 cachedServices[file.id] = services
-                
+
                 let running = await composeManager.getRunningServices(for: file)
                 runningServices[file.id] = running
             }
@@ -356,12 +387,17 @@ struct SidebarView: View {
 
 struct SidebarRow: View {
     let item: SidebarView.SidebarItem
-    @Binding var selectedFile: ComposeFile?
+    @Binding var selectedFiles: Set<UUID>
     @Binding var hoveredId: UUID?
     let isRunning: Bool
     let isServiceRunning: Bool
     let onRename: () -> Void
     let onRemove: () -> Void
+
+    private var isSelected: Bool {
+        guard let file = item.file, !item.isService else { return false }
+        return selectedFiles.contains(file.id)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -409,10 +445,25 @@ struct SidebarRow: View {
 
             Spacer()
         }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
         .contentShape(Rectangle())
         .onTapGesture {
-            if let file = item.file {
-                selectedFile = file
+            if let file = item.file, !item.isService {
+                let cmdPressed = NSEvent.modifierFlags.contains(.command)
+                if cmdPressed {
+                    if selectedFiles.contains(file.id) {
+                        selectedFiles.remove(file.id)
+                    } else {
+                        selectedFiles.insert(file.id)
+                    }
+                } else {
+                    selectedFiles = [file.id]
+                }
             }
         }
         .contextMenu {
@@ -434,7 +485,7 @@ struct ComposeFileRow: View {
     let isSelected: Bool
     let isRunning: Bool
     let isHovered: Bool
-    let onSelect: () -> Void
+    let onSelect: (_ cmdPressed: Bool) -> Void
     let onRename: () -> Void
     let onRemove: () -> Void
 
@@ -479,8 +530,19 @@ struct ComposeFileRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(isSelected ? Color.accentColor.opacity(0.15) : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .simultaneousGesture(
+            TapGesture().modifiers(.command).onEnded {
+                onSelect(true)
+            }
+        )
+        .onTapGesture {
+            onSelect(false)
+        }
         .contextMenu {
             Button(action: onRename) {
                 Label("Rename", systemImage: "pencil")

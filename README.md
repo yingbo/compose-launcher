@@ -1,14 +1,13 @@
 # Compose Launcher
 
-A native macOS application for managing and running Docker Compose files with a beautiful SwiftUI interface.
+A native macOS application for managing and running Docker Compose files with a clean SwiftUI interface.
 
-## Documentation
+## Screenshots
 
-- [Architecture](ARCHITECTURE.md) - High-level overview of the application architecture
-- [FAQ](FAQ.md) - Common questions and answers
-- [Contributing](CONTRIBUTING.md) - Guide for developers
-- [Release Process](RELEASES.md) - How builds and GitHub releases are produced
-- [License](LICENSE) - Legal information
+![Main Window](docs/screenshots/mainwindow.png)
+![Built-in Editor](docs/screenshots/editor.png)
+![Running Services](docs/screenshots/services.png)
+![Settings](docs/screenshots/settings.png)
 
 ## Features
 
@@ -18,7 +17,7 @@ A native macOS application for managing and running Docker Compose files with a 
 - **Live Logs**: View real-time logs from running containers with search and filtering
 - **Log Management**: Configurable log retention (default: 100,000 lines)
 - **External Editor Support**: Open compose files in your preferred external editor
-- **.env File Support**: Automatically picks up `.env` files in the same directory, or allows selecting a custom environment file for each project
+- **.env File Support**: Automatically picks up `.env` files in the same directory, or configure a custom environment file per project
 - **Persistent Settings**: All settings saved in YAML format
 
 ## Requirements
@@ -35,27 +34,25 @@ A native macOS application for managing and running Docker Compose files with a 
 ./build-app.sh
 ```
 
-### Swift Package Manager binary
+### Swift Package Manager
 
 ```bash
 cd ComposeLauncher
 swift build -c release
 ```
 
-The built application will be in `.build/release/ComposeLauncher`.
+The binary will be at `.build/release/ComposeLauncher`.
 
-### Using Xcode
+### Xcode
 
 1. Open the `ComposeLauncher` folder in Xcode
-2. Select **Product → Build** (⌘B)
-3. Run with **Product → Run** (⌘R)
+2. Build with ⌘B, run with ⌘R
 
 ## Usage
 
-1. Click the **+** button in the sidebar
-2. Select a `docker-compose.yml` file
-3. Click **▶** to run and **■** to stop
-4. Use **Editor** to modify YAML and **Logs** to inspect container output
+1. Click **+** in the sidebar to add a `docker-compose.yml` file
+2. Click **▶** to start and **■** to stop
+3. Use the **Editor** tab to modify YAML and **Logs** to inspect container output
 
 ## Keyboard Shortcuts
 
@@ -67,6 +64,13 @@ The built application will be in `.build/release/ComposeLauncher`.
 | Save Editor | ⌘S |
 | Settings | ⌘, |
 
+## Documentation
+
+- [Architecture](ARCHITECTURE.md)
+- [FAQ](FAQ.md)
+- [Contributing](CONTRIBUTING.md)
+- [Release Process](RELEASES.md)
+
 ## License
 
-Private License
+Free for personal use. Commercial use requires the author's permission — please open an issue to get in touch.

@@ -23,18 +23,14 @@ flowchart TD
 
 ### How to Create a Release
 
-1. **(Optional) Create a git tag** for a stable version:
+1. **Tag the commit and push to the release branch**:
    ```bash
-   git tag v1.1.0
-   git push origin v1.1.0
+   git tag v1.3.0
+   git push origin release
+   git push origin v1.3.0
    ```
 
-2. **Push to the release branch**:
-   ```bash
-   git push origin main:release
-   ```
-
-3. **GitHub Actions will automatically**:
+2. **GitHub Actions will automatically**:
    - Build a Universal Binary (Intel + Apple Silicon)
    - Create a ZIP archive
    - Create a GitHub Release with the app attached

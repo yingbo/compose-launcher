@@ -3,10 +3,16 @@ import SwiftUI
 public struct ContentView: View {
     @StateObject private var settingsManager = SettingsManager.shared
     @StateObject private var composeManager = DockerComposeManager.shared
-    @State private var selectedFile: ComposeFile?
+    @State private var selectedFiles: Set<UUID> = []
     @State private var showingSettings = false
     @State private var selectedTab: DetailTab = .logs
     
+    /// The primary selected file (last selected) used for detail views
+    private var primarySelectedFile: ComposeFile? {
+        guard !selectedFiles.isEmpty else { return nil }
+        return settingsManager.settings.composeFiles.last { selectedFiles.contains($0.id) }
+    }
+
     enum DetailTab: String, CaseIterable {
         case logs = "Logs"
         case editor = "Editor"
@@ -28,7 +34,7 @@ public struct ContentView: View {
             SidebarView(
                 settingsManager: settingsManager,
                 composeManager: composeManager,
-                selectedFile: $selectedFile
+                selectedFiles: $selectedFiles
             )
         } detail: {
             VStack(spacing: 0) {
@@ -55,16 +61,16 @@ public struct ContentView: View {
                 // Content
                 switch selectedTab {
                 case .logs:
-                    if selectedFile != nil {
+                    if primarySelectedFile != nil {
                         LogPanelView(
                             composeManager: composeManager,
-                            selectedFile: selectedFile
+                            selectedFile: primarySelectedFile
                         )
                     } else {
                         EmptyStateView()
                     }
                 case .editor:
-                    if let file = selectedFile {
+                    if let file = primarySelectedFile {
                         EditorView(file: file)
                     } else {
                         EmptyStateView()
@@ -73,7 +79,16 @@ public struct ContentView: View {
                     ServicesView(
                         composeManager: composeManager,
                         settingsManager: settingsManager,
-                        selectedFile: $selectedFile
+                        selectedFile: Binding(
+                            get: { primarySelectedFile },
+                            set: { newFile in
+                                if let file = newFile {
+                                    selectedFiles = [file.id]
+                                } else {
+                                    selectedFiles = []
+                                }
+                            }
+                        )
                     )
                 }
             }
