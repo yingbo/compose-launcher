@@ -8,6 +8,10 @@
 - Do not merge PRs yourself; the user will review and merge
 - Do not close issues yourself; the user will close them
 
+### Commits
+- NEVER add `Co-Authored-By` lines in commit messages
+- The repository owner must be the sole contributor; do not attribute commits to AI assistants
+
 ### Worktrees
 - **Do NOT create git worktrees unless absolutely necessary**
 - Work directly in the main worktree for all changes

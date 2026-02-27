@@ -2,15 +2,8 @@ name: Build and Release
 
 on:
   push:
-    branches:
-      - release
-  pull_request:
-    branches:
-      - release
-    types:
-      - opened
-      - synchronize
-      - reopened
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -30,37 +23,13 @@ jobs:
         with:
           swift-version: "5.9"
       
-      - name: Get version
-        id: version
-        run: |
-          # Try to get version from build-app.sh (user's source of truth)
-          if [ -f "build-app.sh" ]; then
-            VERSION=$(grep -A 1 "CFBundleShortVersionString" build-app.sh | grep "<string>" | sed -E 's/.*<string>(.*)<\/string>.*/\1/' || echo "")
-          fi
-          
-          # If not found in script, fallback to latest tag or default
-          if [ -z "$VERSION" ]; then
-            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.1.0")
-            # Remove 'v' prefix if present
-            VERSION=${VERSION#v}
-          fi
-          
-          # Clean up any suffix (like -run_number) to get the base version
-          VERSION=${VERSION%%-*}
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Compute release tag
+      - name: Get version and tag
         id: release_tag
         run: |
-          # Use the exact tag on this commit when available; otherwise generate one.
-          EXACT_TAG=$(git tag --points-at HEAD | head -n 1)
-          if [ -n "$EXACT_TAG" ]; then
-            TAG="$EXACT_TAG"
-          else
-            TAG="v${{ steps.version.outputs.version }}-${{ github.run_number }}"
-          fi
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
       
       - name: Cache SPM dependencies
         uses: actions/cache@v4
@@ -131,9 +100,9 @@ jobs:
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
-              <string>${{ steps.version.outputs.version }}</string>
+              <string>${{ steps.release_tag.outputs.version }}</string>
               <key>CFBundleVersion</key>
-              <string>${{ steps.version.outputs.version }}</string>
+              <string>${{ steps.release_tag.outputs.version }}</string>
               <key>LSMinimumSystemVersion</key>
               <string>14.0</string>
               <key>NSHighResolutionCapable</key>
@@ -154,7 +123,6 @@ jobs:
           zip -r "Compose-Launcher-macos.zip" "Compose Launcher.app"
       
       - name: Create Release
-        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
