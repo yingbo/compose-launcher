@@ -1,1 +1,0 @@
-Whenever working on a GitHub issue, always create a new feature branch named feat/issue-[number] before making changes
