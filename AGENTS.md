@@ -37,6 +37,8 @@ This is a native macOS application (Compose Launcher) built with Swift/SwiftUI f
 - Test changes before committing
 - Maintain compatibility with macOS 14.0 or later
 - Support both Intel and Apple Silicon Macs
+- Use `./build-app.sh` to build the release app bundle and launch it
+- Use Peekaboo (via global `~/.mcp.json` or CLI) to capture screenshots of the running app
 
 ## Design Rules
 

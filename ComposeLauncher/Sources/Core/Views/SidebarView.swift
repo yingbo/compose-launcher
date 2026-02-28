@@ -58,9 +58,16 @@ struct SidebarView: View {
                 isService: false,
                 children: files.map { file in
                     let services = cachedServices[file.id] ?? []
+                    // In tree view, the folder is already shown as the parent node,
+                    // so only show the filename (or custom name) to avoid redundancy
+                    let treeName: String = if let custom = file.customName, !custom.isEmpty {
+                        custom
+                    } else {
+                        URL(fileURLWithPath: file.path).lastPathComponent
+                    }
                     return SidebarItem(
                         id: file.id.uuidString,
-                        name: file.displayName,
+                        name: treeName,
                         icon: "shippingbox.fill",
                         file: file,
                         isService: false,
@@ -414,7 +421,7 @@ struct SidebarRow: View {
             if let file = item.file, !item.isService {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(file.displayName)
+                        Text(item.name)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.primary)
                             .lineLimit(1)
