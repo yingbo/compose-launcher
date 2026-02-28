@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum SortColumn: String {
+    case service, status, host, hostPort, containerPort, protocol_, project
+}
+
 struct ServicesView: View {
     @ObservedObject var composeManager: DockerComposeManager
     @ObservedObject var settingsManager: SettingsManager
@@ -13,16 +17,52 @@ struct ServicesView: View {
     @State private var refreshTask: Task<Void, Never>?
     @State private var cachedConflicts: Set<PortBinding> = []
     @State private var refreshError: String?
+    @State private var sortColumn: SortColumn = .service
+    @State private var sortAscending: Bool = true
 
     private var filteredServices: [ServiceInfo] {
-        guard !searchText.isEmpty else { return allServices }
-        let query = searchText
-        return allServices.filter { service in
-            service.Service.localizedCaseInsensitiveContains(query)
-                || service.Name.localizedCaseInsensitiveContains(query)
-                || service.Ports.localizedCaseInsensitiveContains(query)
-                || (service.composeFileDisplayName ?? "").localizedCaseInsensitiveContains(query)
-                || service.Publishers.contains { String($0.PublishedPort).contains(query) }
+        let base: [ServiceInfo]
+        if searchText.isEmpty {
+            base = allServices
+        } else {
+            let query = searchText
+            base = allServices.filter { service in
+                service.Service.localizedCaseInsensitiveContains(query)
+                    || service.Name.localizedCaseInsensitiveContains(query)
+                    || service.Ports.localizedCaseInsensitiveContains(query)
+                    || (service.composeFileDisplayName ?? "").localizedCaseInsensitiveContains(query)
+                    || service.Publishers.contains { String($0.PublishedPort).contains(query) }
+            }
+        }
+        return base.sorted { a, b in
+            let result: Bool
+            switch sortColumn {
+            case .service:
+                result = a.Service.localizedCaseInsensitiveCompare(b.Service) == .orderedAscending
+            case .status:
+                let aStatus = a.Status.isEmpty ? a.State : a.Status
+                let bStatus = b.Status.isEmpty ? b.State : b.Status
+                result = aStatus.localizedCaseInsensitiveCompare(bStatus) == .orderedAscending
+            case .host:
+                let aHost = a.Publishers.first?.URL ?? ""
+                let bHost = b.Publishers.first?.URL ?? ""
+                result = aHost.localizedCaseInsensitiveCompare(bHost) == .orderedAscending
+            case .hostPort:
+                let aPort = a.Publishers.filter { $0.PublishedPort > 0 }.map(\.PublishedPort).min() ?? Int.max
+                let bPort = b.Publishers.filter { $0.PublishedPort > 0 }.map(\.PublishedPort).min() ?? Int.max
+                result = aPort < bPort
+            case .containerPort:
+                let aPort = a.Publishers.filter { $0.PublishedPort > 0 }.map(\.TargetPort).min() ?? Int.max
+                let bPort = b.Publishers.filter { $0.PublishedPort > 0 }.map(\.TargetPort).min() ?? Int.max
+                result = aPort < bPort
+            case .protocol_:
+                let aProto = a.Publishers.first?.Protocol ?? ""
+                let bProto = b.Publishers.first?.Protocol ?? ""
+                result = aProto.localizedCaseInsensitiveCompare(bProto) == .orderedAscending
+            case .project:
+                result = (a.composeFileDisplayName ?? "").localizedCaseInsensitiveCompare(b.composeFileDisplayName ?? "") == .orderedAscending
+            }
+            return sortAscending ? result : !result
         }
     }
 
@@ -204,7 +244,7 @@ struct ServicesView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ServiceHeaderRow()
+                        ServiceHeaderRow(sortColumn: $sortColumn, sortAscending: $sortAscending)
                         Divider()
 
                         ForEach(filteredServices) { service in
@@ -320,22 +360,51 @@ struct ServicesView: View {
 // MARK: - Header Row
 
 private struct ServiceHeaderRow: View {
+    @Binding var sortColumn: SortColumn
+    @Binding var sortAscending: Bool
+
     var body: some View {
         HStack(spacing: 0) {
-            Text("Service")
+            sortableHeader("Service", column: .service)
                 .frame(width: 140, alignment: .leading)
-            Text("Status")
+            sortableHeader("Status", column: .status)
                 .frame(width: 100, alignment: .leading)
-            Text("Ports")
-                .frame(minWidth: 200, alignment: .leading)
+            sortableHeader("Host", column: .host)
+                .frame(width: 90, alignment: .leading)
+            sortableHeader("Port", column: .hostPort)
+                .frame(width: 70, alignment: .leading)
+            sortableHeader("Container Port", column: .containerPort)
+                .frame(width: 100, alignment: .leading)
+            sortableHeader("Protocol", column: .protocol_)
+                .frame(minWidth: 70, alignment: .leading)
             Spacer()
-            Text("Project")
+            sortableHeader("Project", column: .project)
                 .frame(width: 150, alignment: .trailing)
         }
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundColor(.secondary)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+
+    private func sortableHeader(_ title: String, column: SortColumn) -> some View {
+        Button(action: {
+            if sortColumn == column {
+                sortAscending.toggle()
+            } else {
+                sortColumn = column
+                sortAscending = true
+            }
+        }) {
+            HStack(spacing: 3) {
+                Text(title)
+                if sortColumn == column {
+                    Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8))
+                }
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(sortColumn == column ? .primary : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -366,9 +435,21 @@ private struct ServiceRow: View {
                 .lineLimit(1)
                 .frame(width: 100, alignment: .leading)
 
-            // Ports
-            portsView
-                .frame(minWidth: 200, alignment: .leading)
+            // Host
+            hostAddressView
+                .frame(width: 90, alignment: .leading)
+
+            // Port
+            hostPortView
+                .frame(width: 70, alignment: .leading)
+
+            // Container Port
+            containerPortView
+                .frame(width: 100, alignment: .leading)
+
+            // Protocol
+            protocolView
+                .frame(minWidth: 70, alignment: .leading)
 
             Spacer()
 
@@ -393,15 +474,34 @@ private struct ServiceRow: View {
     }
 
     @ViewBuilder
-    private var portsView: some View {
+    private var hostAddressView: some View {
+        let published = service.Publishers.filter { $0.PublishedPort > 0 }
+        if published.isEmpty {
+            Text("-")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(published) { pub in
+                    Text(pub.URL)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var hostPortView: some View {
         let published = service.Publishers.filter { $0.PublishedPort > 0 }
         if published.isEmpty && !service.Ports.isEmpty {
-            // Fallback: show raw Ports text when Publishers array is absent/empty
             Text(service.Ports)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(.primary)
+                .lineLimit(1)
         } else if published.isEmpty {
-            Text("No published ports")
+            Text("-")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
         } else {
@@ -413,10 +513,46 @@ private struct ServiceRow: View {
                                 .font(.system(size: 9))
                                 .foregroundColor(.orange)
                         }
-                        Text("\(pub.URL):\(pub.PublishedPort) \u{2192} \(pub.TargetPort)/\(pub.`Protocol`)")
+                        Text(String(pub.PublishedPort))
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(isPortConflicted(pub) ? .orange : .primary)
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var containerPortView: some View {
+        let published = service.Publishers.filter { $0.PublishedPort > 0 }
+        if published.isEmpty {
+            Text("-")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(published) { pub in
+                    Text(String(pub.TargetPort))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.primary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var protocolView: some View {
+        let published = service.Publishers.filter { $0.PublishedPort > 0 }
+        if published.isEmpty {
+            Text("-")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(published) { pub in
+                    Text(pub.`Protocol`)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
                 }
             }
         }
