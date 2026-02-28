@@ -79,41 +79,10 @@ jobs:
           # Copy icon
           cp ComposeLauncher/Sources/Core/Resources/AppIcon.icns "Compose Launcher.app/Contents/Resources/"
           
-          # Create Info.plist with version
-          cat > "Compose Launcher.app/Contents/Info.plist" << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-              <key>CFBundleExecutable</key>
-              <string>ComposeLauncher</string>
-              <key>CFBundleIconFile</key>
-              <string>AppIcon</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.composelauncher.app</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>Compose Launcher</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>${{ steps.release_tag.outputs.version }}</string>
-              <key>CFBundleVersion</key>
-              <string>${{ steps.release_tag.outputs.version }}</string>
-              <key>LSMinimumSystemVersion</key>
-              <string>14.0</string>
-              <key>NSHighResolutionCapable</key>
-              <true/>
-              <key>NSHumanReadableCopyright</key>
-              <string>Copyright © 2026. All rights reserved.</string>
-              <key>LSApplicationCategoryType</key>
-              <string>public.app-category.developer-tools</string>
-          </dict>
-          </plist>
-          EOF
+          # Copy Info.plist from source, then stamp release version
+          cp ComposeLauncher/Sources/Core/Resources/Info.plist "Compose Launcher.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.release_tag.outputs.version }}" "Compose Launcher.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.release_tag.outputs.version }}" "Compose Launcher.app/Contents/Info.plist"
           
           # Create PkgInfo
           echo -n "APPL????" > "Compose Launcher.app/Contents/PkgInfo"
