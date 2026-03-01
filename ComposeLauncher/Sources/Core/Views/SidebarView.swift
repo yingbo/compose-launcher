@@ -15,6 +15,8 @@ struct SidebarView: View {
     @State private var showingRenameAlert = false
     @State private var fileToRename: ComposeFile?
     @State private var renameText: String = ""
+    @State private var showingEnvFilePicker = false
+    @State private var envPickerTargetFile: ComposeFile?
 
     struct SidebarItem: Identifiable {
         let id: String
@@ -95,13 +97,13 @@ struct SidebarView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.secondary)
                 Spacer()
-                Button(action: { showingFilePicker = true }) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.accentColor)
-                }
-                .buttonStyle(.plain)
-                .help("Add Compose File")
+                ToolbarIconButton(
+                    icon: "plus.circle.fill",
+                    color: .accentColor,
+                    isEnabled: true,
+                    help: "Add Compose File",
+                    action: { showingFilePicker = true }
+                )
                 .accessibilityIdentifier("sidebar-add-button")
             }
             .padding(.horizontal, 16)
@@ -111,60 +113,52 @@ struct SidebarView: View {
 
             // Global Action Toolbar
             HStack(spacing: 6) {
-                Button(action: {
-                    startSelectedFiles()
-                }) {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(canStartSelected ? .green : .green.opacity(0.3))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canStartSelected)
-                .help("Start")
+                ToolbarIconButton(
+                    icon: "play.fill",
+                    color: .green,
+                    isEnabled: canStartSelected,
+                    help: "Start",
+                    action: { startSelectedFiles() }
+                )
 
-                Button(action: {
-                    stopSelectedFiles()
-                }) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(canStopSelected ? .red : .red.opacity(0.3))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canStopSelected)
-                .help("Stop")
+                ToolbarIconButton(
+                    icon: "stop.fill",
+                    color: .red,
+                    isEnabled: canStopSelected,
+                    help: "Stop",
+                    action: { stopSelectedFiles() }
+                )
 
                 Divider()
                     .frame(height: 22)
                     .padding(.horizontal, 4)
 
-                Button(action: {
-                    if let file = selectedComposeFiles.first {
-                        fileToRename = file
-                        renameText = file.displayName
-                        showingRenameAlert = true
+                ToolbarIconButton(
+                    icon: "character.cursor.ibeam",
+                    color: .secondary,
+                    isEnabled: !selectedFiles.isEmpty,
+                    help: "Rename",
+                    action: {
+                        if let file = selectedComposeFiles.first {
+                            fileToRename = file
+                            renameText = file.displayName
+                            showingRenameAlert = true
+                        }
                     }
-                }) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 18))
-                        .foregroundColor(!selectedFiles.isEmpty ? .secondary : .secondary.opacity(0.3))
-                }
-                .buttonStyle(.plain)
-                .disabled(selectedFiles.isEmpty)
-                .help("Rename")
+                )
 
-                Button(action: {
-                    if let file = selectedComposeFiles.first {
-                        fileToDelete = file
-                        showingDeleteConfirmation = true
+                ToolbarIconButton(
+                    icon: "trash",
+                    color: .secondary,
+                    isEnabled: !selectedFiles.isEmpty,
+                    help: "Remove",
+                    action: {
+                        if let file = selectedComposeFiles.first {
+                            fileToDelete = file
+                            showingDeleteConfirmation = true
+                        }
                     }
-                }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 18))
-                        .foregroundColor(!selectedFiles.isEmpty ? .secondary : .secondary.opacity(0.3))
-                }
-                .buttonStyle(.plain)
-                .disabled(selectedFiles.isEmpty)
-                .help("Remove")
+                )
 
                 Spacer()
 
@@ -207,6 +201,17 @@ struct SidebarView: View {
                                 fileToDelete = file
                                 showingDeleteConfirmation = true
                             }
+                        },
+                        onAttachEnv: {
+                            if let file = item.file {
+                                envPickerTargetFile = file
+                                showingEnvFilePicker = true
+                            }
+                        },
+                        onDetachEnv: {
+                            if let file = item.file {
+                                detachEnvFile(file)
+                            }
                         }
                     )
                     .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
@@ -232,6 +237,13 @@ struct SidebarView: View {
                                 onRemove: {
                                     fileToDelete = file
                                     showingDeleteConfirmation = true
+                                },
+                                onAttachEnv: {
+                                    envPickerTargetFile = file
+                                    showingEnvFilePicker = true
+                                },
+                                onDetachEnv: {
+                                    detachEnvFile(file)
                                 }
                             )
                             .onHover { isHovered in
@@ -280,6 +292,21 @@ struct SidebarView: View {
         ) { result in
             handleFileSelection(result)
         }
+        .onChange(of: showingEnvFilePicker) {
+            guard showingEnvFilePicker, let targetFile = envPickerTargetFile else { return }
+            showingEnvFilePicker = false
+
+            let panel = NSOpenPanel()
+            panel.allowsMultipleSelection = false
+            panel.canChooseDirectories = false
+            panel.canChooseFiles = true
+            panel.directoryURL = URL(fileURLWithPath: targetFile.path).deletingLastPathComponent()
+            panel.title = "Select .env File"
+
+            if panel.runModal() == .OK, let url = panel.url {
+                attachEnvFile(targetFile, envPath: url.path)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .addComposeFile)) { _ in
             showingFilePicker = true
         }
@@ -323,9 +350,15 @@ struct SidebarView: View {
                 let existingPaths = settingsManager.settings.composeFiles.map { $0.path }
                 guard !existingPaths.contains(url.path) else { continue }
 
+                // Auto-attach .env if one exists in the same directory
+                let composeDir = url.deletingLastPathComponent()
+                let defaultEnvPath = composeDir.appendingPathComponent(".env").path
+                let envPath: String? = FileManager.default.fileExists(atPath: defaultEnvPath) ? defaultEnvPath : nil
+
                 let file = ComposeFile(
                     name: "",
-                    path: url.path
+                    path: url.path,
+                    envFilePath: envPath
                 )
                 settingsManager.addComposeFile(file)
                 selectedFiles = [file.id]
@@ -379,6 +412,18 @@ struct SidebarView: View {
         settingsManager.updateComposeFile(updated)
     }
 
+    private func detachEnvFile(_ file: ComposeFile) {
+        var updated = file
+        updated.envFilePath = nil
+        settingsManager.updateComposeFile(updated)
+    }
+
+    private func attachEnvFile(_ file: ComposeFile, envPath: String) {
+        var updated = file
+        updated.envFilePath = envPath
+        settingsManager.updateComposeFile(updated)
+    }
+
     private func refreshAllServices() {
         for file in settingsManager.settings.composeFiles {
             Task {
@@ -400,6 +445,8 @@ struct SidebarRow: View {
     let isServiceRunning: Bool
     let onRename: () -> Void
     let onRemove: () -> Void
+    let onAttachEnv: () -> Void
+    let onDetachEnv: () -> Void
 
     private var isSelected: Bool {
         guard let file = item.file, !item.isService else { return false }
@@ -426,14 +473,15 @@ struct SidebarRow: View {
                             .foregroundColor(.primary)
                             .lineLimit(1)
 
-                        if file.envFilePath != nil {
-                            Text(".env")
+                        if let envPath = file.envFilePath {
+                            Text(URL(fileURLWithPath: envPath).lastPathComponent)
                                 .font(.system(size: 8, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1)
                                 .background(Color.accentColor.opacity(0.8))
                                 .cornerRadius(3)
+                                .help(envPath)
                         }
                     }
 
@@ -474,9 +522,18 @@ struct SidebarRow: View {
             }
         }
         .contextMenu {
-            if item.file != nil && !item.isService {
+            if let file = item.file, !item.isService {
                 Button(action: onRename) {
-                    Label("Rename", systemImage: "pencil")
+                    Label("Rename", systemImage: "character.cursor.ibeam")
+                }
+                Divider()
+                if file.envFilePath != nil {
+                    Button(action: onDetachEnv) {
+                        Label("Detach .env File", systemImage: "doc.badge.minus")
+                    }
+                }
+                Button(action: onAttachEnv) {
+                    Label(file.envFilePath != nil ? "Change .env File…" : "Attach .env File…", systemImage: "doc.badge.plus")
                 }
                 Divider()
                 Button(role: .destructive, action: onRemove) {
@@ -495,6 +552,8 @@ struct ComposeFileRow: View {
     let onSelect: (_ cmdPressed: Bool) -> Void
     let onRename: () -> Void
     let onRemove: () -> Void
+    let onAttachEnv: () -> Void
+    let onDetachEnv: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -511,14 +570,15 @@ struct ComposeFileRow: View {
                         .foregroundColor(.primary)
                         .lineLimit(1)
 
-                    if file.envFilePath != nil {
-                        Text(".env")
+                    if let envPath = file.envFilePath {
+                        Text(URL(fileURLWithPath: envPath).lastPathComponent)
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.accentColor.opacity(0.8))
                             .cornerRadius(3)
+                            .help(envPath)
                     }
                 }
 
@@ -552,12 +612,49 @@ struct ComposeFileRow: View {
         }
         .contextMenu {
             Button(action: onRename) {
-                Label("Rename", systemImage: "pencil")
+                Label("Rename", systemImage: "character.cursor.ibeam")
+            }
+            Divider()
+            if file.envFilePath != nil {
+                Button(action: onDetachEnv) {
+                    Label("Detach .env File", systemImage: "doc.badge.minus")
+                }
+            }
+            Button(action: onAttachEnv) {
+                Label(file.envFilePath != nil ? "Change .env File…" : "Attach .env File…", systemImage: "doc.badge.plus")
             }
             Divider()
             Button(role: .destructive, action: onRemove) {
                 Label("Remove", systemImage: "trash")
             }
+        }
+    }
+}
+
+struct ToolbarIconButton: View {
+    let icon: String
+    let color: Color
+    let isEnabled: Bool
+    let help: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundColor(isEnabled ? color : color.opacity(0.3))
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(isHovered && isEnabled ? Color.primary.opacity(0.1) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .help(help)
+        .onHover { hovering in
+            isHovered = hovering
         }
     }
 }

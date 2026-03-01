@@ -24,7 +24,7 @@ public struct SettingsView: View {
                         .font(.system(size: 18))
                         .foregroundColor(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
             }
             .padding(20)
             

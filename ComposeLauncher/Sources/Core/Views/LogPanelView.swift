@@ -69,7 +69,7 @@ struct LogPanelView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .help("Clear logs")
                 .accessibilityIdentifier("log-clear-button")
             }

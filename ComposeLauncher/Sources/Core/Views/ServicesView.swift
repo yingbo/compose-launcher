@@ -165,7 +165,7 @@ struct ServicesView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .disabled(isLoading)
                 .help("Refresh services")
                 .accessibilityIdentifier("services-refresh-button")
@@ -210,7 +210,7 @@ struct ServicesView: View {
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -404,7 +404,7 @@ private struct ServiceHeaderRow: View {
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(sortColumn == column ? .primary : .secondary)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
     }
 }
 
@@ -464,7 +464,7 @@ private struct ServiceRow: View {
                 }
                 .foregroundColor(.accentColor)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .help("Navigate to \(service.composeFileDisplayName ?? "compose file")")
             .frame(width: 150, alignment: .trailing)
         }

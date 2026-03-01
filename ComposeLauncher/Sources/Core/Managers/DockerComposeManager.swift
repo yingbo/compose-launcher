@@ -286,17 +286,10 @@ public class DockerComposeManager: DockerComposeManaging {
     }
 
     private func getEnvFileArguments(for file: ComposeFile) -> [String] {
-        if let customEnv = file.envFilePath, !customEnv.isEmpty {
-            return ["--env-file", customEnv]
+        // Only use env file when explicitly attached (shown in GUI)
+        if let envPath = file.envFilePath, !envPath.isEmpty {
+            return ["--env-file", envPath]
         }
-
-        // Default to .env in the same directory if it exists
-        let composeDir = URL(fileURLWithPath: file.path).deletingLastPathComponent()
-        let defaultEnvPath = composeDir.appendingPathComponent(".env").path
-        if FileManager.default.fileExists(atPath: defaultEnvPath) {
-            return ["--env-file", defaultEnvPath]
-        }
-
         return []
     }
 
