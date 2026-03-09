@@ -1,41 +1,73 @@
 # Compose Launcher
 
-Run and manage multiple Docker Compose projects from one native macOS app.
+A native macOS GUI for managing multiple **Docker Compose** files in one place.
 
-![Main Window](docs/screenshots/mainwindow.png)
-![Built-in Editor](docs/screenshots/editor.png)
-![Running Services](docs/screenshots/services.png)
-![Settings](docs/screenshots/settings.png)
+Import stacks, start and stop services, stream logs, and edit Compose YAML without juggling terminal tabs.
+
+## Why Compose Launcher
+
+- Manage multiple Docker Compose projects from one app
+- See all running services across projects at a glance
+- Stream and search logs without terminal clutter
+- Edit Compose YAML directly inside the app
+- Designed for local multi-stack development on macOS
+
+![Main Window](docs/screenshots/mainwindow.png)p
+![Platform](https://img.shields.io/badge/platform-macOS-blue)
+![Docker Compose](https://img.shields.io/badge/docker-compose-orange)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
 
 ## The Problem
 
-When you work on multiple Docker Compose projects, local development gets noisy fast:
+When you work across multiple local Docker Compose projects, the terminal workflow gets messy fast:
 
-- you forget which stacks are running
-- switching between projects is manual and repetitive
-- logs are split across terminal windows
-- editing compose files and checking service state happens in different tools
+- too many terminal tabs and windows
+- hard to remember which stacks are running
+- logs scattered across sessions
+- editing Compose files and monitoring services happen in different tools
 
 ## The Solution
 
-Compose Launcher gives you one desktop workspace to run, inspect, and edit Compose projects:
+Compose Launcher centralizes your local Compose workflow in one macOS app. You can manage projects in a sidebar, control runtime state, inspect logs, and edit YAML from the same interface. This reduces terminal hopping and makes multi-stack development easier to track.
 
-- launch and stop compose projects from a single sidebar
-- monitor service status in one place
-- inspect live logs without terminal juggling
-- edit compose files directly in-app
+## Why not just use the CLI?
+
+`docker compose` works well for individual projects, but local development gets harder when you are managing multiple stacks at once. Compose Launcher gives you a single place to track projects, inspect logs, and edit Compose files without bouncing between terminal sessions and windows.
 
 ## Features
 
-- Import and manage multiple `docker-compose.yml` files
+## Features
+
+Core capabilities:
+
+- Manage multiple Compose projects
+- Start/stop stacks from one interface
+- Stream and search logs
+- Built-in Compose YAML editor
+- `.env` file support
+
+### Project Management
+
+- Import and manage multiple Compose files (including `compose.yaml`, `docker-compose.yml`, and custom filenames)
 - Directory-aware sidebar tree for quick navigation
-- Start/stop controls for selected compose projects
-- Built-in YAML editor with save support
-- Live log streaming with search/filter
-- Configurable log retention (default: 100,000 lines)
-- External editor integration
 - `.env` file support (auto-detect or custom path per project)
 - Persistent settings stored in YAML
+
+### Runtime Control
+
+- Start and stop selected Compose projects
+- Service status visibility in one interface
+
+### Logs & Debugging
+
+- Live log streaming
+- Search and filter logs
+- Configurable log retention (default: 100,000 lines)
+
+### Editing
+
+- Built-in YAML editor with save support
+- External editor integration
 
 ## Requirements
 
@@ -45,13 +77,27 @@ Compose Launcher gives you one desktop workspace to run, inspect, and edit Compo
 
 ## Installation
 
-### Run app bundle (recommended)
+### Option 1: Download a release build
+
+Download the latest `Compose-Launcher-macos.zip` from this repository's [Releases](../../releases) page. Extract it, then launch `Compose Launcher.app`.
+
+Code signing note: release builds are unsigned. On first launch, right-click and choose **Open**, or run:
+
+```bash
+xattr -cr "Compose Launcher.app"
+```
+
+### Option 2: Build from source
+
+You can also build locally from source:
 
 ```bash
 ./build-app.sh
 ```
 
-### Build with Swift Package Manager
+This creates `Compose Launcher.app` and launches it.
+
+Alternative manual build:
 
 ```bash
 cd ComposeLauncher
@@ -64,26 +110,35 @@ Binary output:
 ComposeLauncher/.build/release/ComposeLauncher
 ```
 
-### Build/run in Xcode
-
-1. Open the `ComposeLauncher` directory in Xcode.
-2. Build with `⌘B` and run with `⌘R`.
-
 ## Quick Start
 
 1. Launch the app.
-2. Click `+` in the sidebar and select a `docker-compose.yml` file.
-3. Click `▶` to start the stack and `■` to stop it.
-4. Use **Editor** to edit YAML and **Logs** to inspect container output.
+2. Click **Add Compose File** (⌘O).
+3. Select your `compose.yaml` or `docker-compose.yml`.
+4. Click **Start Selected** (⌘R).
+5. View logs or edit configuration from the sidebar.
+
+## Interface Preview
+
+![Running Services](docs/screenshots/services.png)
+![Built-in Editor](docs/screenshots/editor.png)
+![Settings](docs/screenshots/settings.png)
 
 ## Use Cases
 
-Compose Launcher is especially useful for:
+- Microservice development with multiple local stacks
+- Managing several Compose projects at the same time
+- Switching between local environments quickly
+- Using a GUI workflow for day-to-day Docker Compose tasks
 
-- microservice development with several local stacks
-- API + database + queue development environments
-- switching between client/project-specific compose setups
-- developers who want GUI-based compose operations on macOS
+## Who This Is For
+
+Compose Launcher is useful if you:
+
+- run multiple Docker Compose projects locally
+- work on microservice architectures
+- prefer a GUI over managing stacks purely in terminal
+- frequently switch between local environments
 
 ## Comparison
 
@@ -91,10 +146,6 @@ Compose Launcher is especially useful for:
 |--------|----------|
 | `docker compose` CLI | Operating one project at a time from terminal |
 | Compose Launcher | Managing multiple projects with GUI controls, logs, and editor |
-
-## Why This Exists
-
-Compose Launcher was created to reduce local Docker Compose friction on macOS: fewer terminal tabs, faster context switching, and a clearer view of what is running.
 
 ## Keyboard Shortcuts
 
@@ -128,4 +179,4 @@ Contributions are welcome. Please open an issue or submit a pull request.
 
 ## License
 
-Free for personal use. Commercial use requires the author's permission. Open an issue to get in touch.
+MIT License
