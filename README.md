@@ -7,6 +7,10 @@ A lightweight GUI to start, stop, and manage Docker Compose stacks. Perfect for 
 - Lightweight alternative to Docker Desktop
 - Built for local development workflows
 
+![Platform](https://img.shields.io/badge/platform-macOS-blue)
+![Docker Compose](https://img.shields.io/badge/docker-compose-orange)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
+
 ## Why Compose Launcher
 
 - Manage multiple Docker Compose projects from one app
@@ -20,11 +24,6 @@ Who is this for?
 - Developers running multiple compose environments
 - Teams with several local services
 - People who don't want to memorize docker-compose commands
-
-![Main Window](docs/screenshots/mainwindow.png)p
-![Platform](https://img.shields.io/badge/platform-macOS-blue)
-![Docker Compose](https://img.shields.io/badge/docker-compose-orange)
-![Status](https://img.shields.io/badge/status-active-brightgreen)
 
 ## The Problem
 
@@ -129,6 +128,7 @@ ComposeLauncher/.build/release/ComposeLauncher
 
 ## Interface Preview
 
+![Main Window](docs/screenshots/mainwindow.png)
 ![Running Services](docs/screenshots/services.png)
 ![Built-in Editor](docs/screenshots/editor.png)
 ![Settings](docs/screenshots/settings.png)
