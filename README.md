@@ -1,8 +1,11 @@
 # Compose Launcher
 
-A native macOS GUI for managing multiple **Docker Compose** files in one place.
+A lightweight GUI to start, stop, and manage Docker Compose stacks. Perfect for developers running multiple compose files locally.
 
-Import stacks, start and stop services, stream logs, and edit Compose YAML without juggling terminal tabs.
+- Visual stack management
+- Start / stop environments in one click
+- Lightweight alternative to Docker Desktop
+- Built for local development workflows
 
 ## Why Compose Launcher
 
@@ -11,6 +14,12 @@ Import stacks, start and stop services, stream logs, and edit Compose YAML witho
 - Stream and search logs without terminal clutter
 - Edit Compose YAML directly inside the app
 - Designed for local multi-stack development on macOS
+
+Who is this for?
+
+- Developers running multiple compose environments
+- Teams with several local services
+- People who don't want to memorize docker-compose commands
 
 ![Main Window](docs/screenshots/mainwindow.png)p
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
